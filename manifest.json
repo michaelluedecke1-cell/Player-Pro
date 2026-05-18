@@ -1,0 +1,20 @@
+{
+  "name": "Ultimate Music Player",
+  "short_name": "Music Player",
+  "description": "Ein installierbarer, offline-fähiger Musikplayer für lokale Ordner.",
+  "start_url": "player15.html",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#1db954",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/10049/10049911.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
+

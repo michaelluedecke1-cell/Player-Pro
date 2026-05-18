@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Music Player v13 (Visualizer Edition)</title>
+    <style>
+        body { background: #121212; color: #fff; font-family: sans-serif; display: flex; justify-content: center; padding: 10px; }
+        .player { width: 100%; max-width: 400px; background: #1e1e1e; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        
+        .nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .tab-btn { flex: 1; padding: 10px; background: #252525; border: none; color: #b3b3b3; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; }
+        .tab-btn.active-tab { background: #1db954; color: #000; }
+
+        .page { display: none; }
+        .page.active-page { display: block; }
+
+        .folder-management { background: #252525; padding: 12px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; }
+        .folder-list { max-height: 80px; overflow-y: auto; font-size: 0.85rem; color: #b3b3b3; margin-bottom: 8px; padding-left: 5px; }
+        .folder-item { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #2a2a2a; }
+        .btn-add-folder { width: 100%; padding: 12px; background: #1db954; color: #000; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.95rem; text-align: center; display: block; box-sizing: border-box; }
+        .btn-clear-all { width: 100%; padding: 8px; background: #500; color: #ff6b6b; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; margin-top: 5px; }
+
+        .search-box { width: 100%; padding: 10px; background: #252525; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 0.95rem; margin-bottom: 15px; box-sizing: border-box; }
+        .search-box:focus { border-color: #1db954; outline: none; }
+
+        .timer-container { background: #252525; padding: 12px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #333; }
+        .timer-controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px; }
+        .timer-container button { background: #3c3c3c; border: none; color: white; padding: 10px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: bold; transition: background 0.2s; }
+        .btn-stop { grid-column: span 4; background: #400 !important; color: #ff6b6b !important; }
+        #sleep-status { text-align: center; font-size: 0.85rem; color: #1db954; font-weight: bold; }
+
+        /* Aktivierter grüner Timer-Button */
+        .timer-active { background: #1db954 !important; color: #000 !important; }
+
+        .mode-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+        .btn-mode { padding: 12px 5px; background: #333; color: #fff; border: 1px solid #444; border-radius: 8px; cursor: pointer; font-size: 0.8rem; text-align: center; }
+        .mode-on { background: #1db954 !important; color: #000 !important; font-weight: bold; }
+
+        .norm-row { margin-bottom: 15px; }
+        .btn-norm { width: 100%; padding: 10px; background: #2a2a2a; color: #b3b3b3; border: 1px solid #444; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: bold; }
+
+        .visualizer-container { background: #2a2a2a; border-radius: 12px; padding: 12px; margin-bottom: 15px; }
+        .track-box { padding: 5px 0; font-weight: bold; font-size: 1.1rem; overflow: hidden; height: 24px; display: flex; align-items: center; justify-content: center; }
+        .track-text-container { width: 100%; overflow: hidden; position: relative; display: flex; justify-content: center; }
+        .track-text { white-space: nowrap; display: inline-block; position: relative; }
+        
+        #visualizer { width: 100%; height: 45px; display: block; background: transparent; border-top: 1px solid #383838; margin-top: 8px; }
+
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            10% { transform: translateX(0); }
+            45% { transform: translateX(var(--scroll-distance)); }
+            55% { transform: translateX(var(--scroll-distance)); }
+            90% { transform: translateX(0); }
+            100% { transform: translateX(0); }
+        }
+
+        .slider-container { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; background: #252525; padding: 12px; border-radius: 10px; }
+        .slider-row { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: #b3b3b3; }
+        .slider-row span { min-width: 35px; }
+        .slider-row span.right-time { text-align: right; }
+        input[type="range"] { flex: 1; accent-color: #1db954; cursor: pointer; height: 6px; border-radius: 3px; background: #444; -webkit-appearance: none; }
+
+        .playback-controls { display: flex; gap: 15px; margin-bottom: 15px; align-items: center; }
+        .btn-skip, .btn-main-play { padding: 12px; background: #333; border: 1px solid #444; color: #fff; border-radius: 10px; cursor: pointer; font-weight: bold; display: flex; justify-content: center; align-items: center; }
+        .btn-skip { flex: 1; font-size: 1.4rem; }
+        .btn-main-play { flex: 1.5; font-size: 1.8rem; background: #1db954; color: #000; border: none; }
+
+        .playlist { max-height: 320px; overflow-y: auto; }
+        .item { padding: 14px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 0.95rem; }
+        .item-text { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .active-track { color: #1db954; font-weight: bold; background: #252525; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="player">
+    <div class="nav-tabs">
+        <button class="tab-btn active-tab" onclick="switchPage('player-page', this)">🎵 Player</button>
+        <button class="tab-btn" onclick="switchPage('playlist-page', this)">📜 Playlist (<span id="count">0</span>)</button>
+    </div>
+
+    <div id="player-page" class="page active-page">
+        <div class="timer-container">
+            <div class="timer-controls">
+                <button id="timer-15" onclick="setSleep(15)">15 Min</button>
+                <button id="timer-30" onclick="setSleep(30)">30 Min</button>
+                <button id="timer-60" onclick="setSleep(60)">60 Min</button>
+                <button id="timer-90" onclick="setSleep(90)">90 Min</button>
+                <button class="btn-stop" onclick="clearSleep()">Timer Stoppen</button>
+            </div>
+            <div id="sleep-status">Sleep-Timer: Aus</div>
+        </div>
+
+        <div class="mode-row">
+            <button class="btn-mode" id="shuffleBtn" onclick="toggleShuffle()">🔀 Shuffle: Aus</button>
+            <button class="btn-mode" id="repeatBtn" onclick="toggleRepeat()">🔁 Repeat: Aus</button>
+            <button class="btn-mode" id="wakeLockBtn" onclick="toggleWakeLock()">📱 Display: Normal</button>
+        </div>
+
+        <div class="norm-row">
+            <button class="btn-norm" id="normBtn" onclick="toggleNormalization()">🔊 Auto-Lautstärke: AUS</button>
+        </div>
+
+        <div class="visualizer-container" id="visContainer">
+            <div class="track-box" id="trackBox">
+                <div class="track-text-container">
+                    <span class="track-text" id="trackTitle">Keine Lieder geladen</span>
+                </div>
+            </div>
+            <canvas id="visualizer"></canvas>
+        </div>
+
+        <div class="slider-container">
+            <div class="slider-row">
+                <span id="currentTime">0:00</span>
+                <input type="range" id="progressSlider" value="0" min="0" step="0.1">
+                <span id="durationTime" class="right-time">0:00</span>
+            </div>
+            <div class="slider-row">
+                <span>🔊</span>
+                <input type="range" id="volumeSlider" value="1" min="0" max="1" step="0.01">
+            </div>
+        </div>
+
+        <div class="playback-controls">
+            <button class="btn-skip" onclick="prevSong()">⏮</button>
+            <button class="btn-main-play" id="mainPlayBtn" onclick="togglePlay()">▶</button>
+            <button class="btn-skip" onclick="nextSong()">⏭</button>
+        </div>
+
+        <audio id="audio" style="display:none"></audio>
+    </div>
+
+    <div id="playlist-page" class="page">
+        <div class="folder-management">
+            <div class="folder-list" id="folderList">Keine Ordner verknüpft</div>
+            
+            <input type="file" id="directoryInput" webkitdirectory directory multiple style="display:none;" onchange="handleFolderSelect(this.files)">
+            <button class="btn-add-folder" id="addFolderBtn" onclick="document.getElementById('directoryInput').click()">➕ Ordner hinzufügen</button>
+            
+            <button class="btn-clear-all" onclick="clearAll()">🗑 Alle Daten löschen</button>
+        </div>
+
+        <input type="text" id="searchBox" class="search-box" placeholder="🔍 In allen Ordnern suchen..." oninput="renderPlaylist()">
+
+        <div class="playlist" id="playlist"></div>
+    </div>
+</div>
+
+<script>
+    const audio = document.getElementById('audio');
+    const trackBox = document.getElementById('trackBox');
+    const trackTitle = document.getElementById('trackTitle');
+    const playlistEl = document.getElementById('playlist');
+    const folderListEl = document.getElementById('folderList');
+    const sleepStatus = document.getElementById('sleep-status');
+    const shuffleBtn = document.getElementById('shuffleBtn');
+    const repeatBtn = document.getElementById('repeatBtn');
+    const wakeLockBtn = document.getElementById('wakeLockBtn');
+    const normBtn = document.getElementById('normBtn');
+    const countEl = document.getElementById('count');
+    const mainPlayBtn = document.getElementById('mainPlayBtn');
+    const progressSlider = document.getElementById('progressSlider');
+    const volumeSlider = document.getElementById('volumeSlider');
+    const currentTimeEl = document.getElementById('currentTime');
+    const durationTimeEl = document.getElementById('durationTime');
+    const searchBox = document.getElementById('searchBox');
+    const visContainer = document.getElementById('visContainer');
+    const canvas = document.getElementById('visualizer');
+    const canvasCtx = canvas.getContext('2d');
+
+    let songs = [];
+    let currentIndex = 0;
+    let sleepTimer = null;
+    let isShuffle = false;
+    let isRepeat = false;
+    let isNormalized = false;
+    
+    let wakeLock = null;
+    let isWakeLockActive = false;
+    let currentTrackText = "Keine Lieder geladen";
+    let shuffledIndices = [];
+
+    let audioCtx = null;
+    let sourceNode = null;
+    let compressorNode = null;
+    let gainNode = null;
+    let analyserNode = null; 
+    let animationId = null;
+
+    window.onload = function() {
+        // PWA Service Worker & Manifest Registrierung
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('Service Worker registriert!'))
+                .catch(err => console.log('Service Worker Fehler:', err));
+        }
+        if (!document.querySelector('link[rel="manifest"]')) {
+            const link = document.createElement('link');
+            link.rel = 'manifest';
+            link.href = 'manifest.json';
+            document.head.appendChild(link);
+        }
+
+        const savedIndex = localStorage.getItem('player_current_index');
+        if (savedIndex) currentIndex = parseInt(savedIndex);
+
+        const savedNorm = localStorage.getItem('player_normalization');
+        if (savedNorm === "true") {
+            isNormalized = true;
+            normBtn.classList.add('mode-on');
+            normBtn.textContent = "🔊 Auto-Lautstärke: AN";
+        }
+        resizeCanvas();
+    }
+
+    function initAudioPipeline() {
+        if (audioCtx) return; 
+
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        sourceNode = audioCtx.createMediaElementSource(audio);
+        
+        compressorNode = audioCtx.createDynamicsCompressor();
+        gainNode = audioCtx.createGain();
+        analyserNode = audioCtx.createAnalyser(); 
+
+        compressorNode.threshold.setValueAtTime(-28, audioCtx.currentTime);
+        compressorNode.knee.setValueAtTime(15, audioCtx.currentTime);
+        compressorNode.ratio.setValueAtTime(16, audioCtx.currentTime);
+        compressorNode.attack.setValueAtTime(0.005, audioCtx.currentTime);
+        compressorNode.release.setValueAtTime(0.20, audioCtx.currentTime);
+
+        analyserNode.fftSize = 64; 
+        gainNode.gain.setValueAtTime(parseFloat(volumeSlider.value), audioCtx.currentTime);
+
+        updateAudioRouting();
+        drawVisualizer(); 
+    }
+
+    function updateAudioRouting() {
+        if (!audioCtx) return;
+        sourceNode.disconnect();
+        compressorNode.disconnect();
+        gainNode.disconnect();
+        analyserNode.disconnect();
+
+        if (isNormalized) {
+            sourceNode.connect(compressorNode);
+            compressorNode.connect(gainNode);
+            gainNode.connect(analyserNode);
+        } else {
+            sourceNode.connect(gainNode);
+            gainNode.connect(analyserNode);
+        }
+        analyserNode.connect(audioCtx.destination);
+    }
+
+    function drawVisualizer() {
+        animationId = requestAnimationFrame(drawVisualizer);
+        if(!analyserNode) return;
+
+        const bufferLength = analyserNode.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        analyserNode.getByteFrequencyData(dataArray);
+
+        canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const barWidth = (canvas.width / bufferLength) * 1.4;
+        let barHeight;
+        let x = 0;
+
+        for (let i = 0; i < bufferLength; i++) {
+            barHeight = dataArray[i] / 4.5; 
+            canvasCtx.fillStyle = `rgb(29, ${Math.min(185 + barHeight * 2, 255)}, ${Math.min(54 + barHeight * 4, 255)})`;
+            canvasCtx.fillRect(x, canvas.height - barHeight, barWidth - 3, barHeight);
+            x += barWidth;
+        }
+    }
+
+    function resizeCanvas() {
+        canvas.width = visContainer.clientWidth - 24;
+        canvas.height = 45;
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function toggleNormalization() {
+        initAudioPipeline();
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        isNormalized = !isNormalized;
+        localStorage.setItem('player_normalization', isNormalized);
+        normBtn.classList.toggle('mode-on', isNormalized);
+        normBtn.textContent = "🔊 Auto-Lautstärke: " + (isNormalized ? "AN" : "AUS");
+        updateAudioRouting();
+    }
+
+    volumeSlider.addEventListener('input', () => {
+        const val = parseFloat(volumeSlider.value);
+        if (gainNode && audioCtx) gainNode.gain.setValueAtTime(val, audioCtx.currentTime);
+        else audio.volume = val;
+    });
+
+    function handleFolderSelect(fileList) {
+        if (fileList.length === 0) return;
+
+        let mainFolderName = "Musik Ordner";
+        if (fileList[0] && fileList[0].webkitRelativePath) {
+            mainFolderName = fileList[0].webkitRelativePath.split('/')[0];
+        }
+
+        folderListEl.innerHTML = `<div class="folder-item" style="color:#1db954">✔ ${mainFolderName}</div>`;
+        songs = [];
+
+        for (let file of fileList) {
+            if (/\.(mp3|wav|ogg|m4a|flac)$/i.test(file.name)) {
+                songs.push({
+                    name: file.name.replace(/\.[^/.]+$/, ""),
+                    fileBlob: file
+                });
+            }
+        }
+
+        renderPlaylist();
+        if (isShuffle) generateShuffleList();
+        
+        if (songs.length > 0) {
+            currentIndex = 0;
+            currentTrackText = songs[currentIndex].name;
+            updateTrackTitleText();
+        } else {
+            currentTrackText = "Keine unterstützten Musikdateien gefunden!";
+            updateTrackTitleText();
+        }
+    }
+
+    function renderPlaylist() {
+        playlistEl.innerHTML = ''; countEl.textContent = songs.length;
+        const query = searchBox.value.toLowerCase();
+        songs.forEach((song, index) => {
+            if (query && !song.name.toLowerCase().includes(query)) return;
+            const div = document.createElement('div');
+            div.className = 'item' + (index === currentIndex && audio.src ? ' active-track' : '');
+            div.innerHTML = `<span class="item-text" onclick="playSong(${index})">${index + 1}. ${song.name}</span>`;
+            playlistEl.appendChild(div);
+        });
+    }
+
+    async function playSong(index) {
+        if (songs.length === 0 || !songs[index]) return;
+        initAudioPipeline();
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
+        currentIndex = index;
+        currentTrackText = songs[index].name;
+        updateTrackTitleText();
+        localStorage.setItem('player_current_index', currentIndex);
+        
+        if (audio.src) URL.revokeObjectURL(audio.src);
+        audio.src = URL.createObjectURL(songs[index].fileBlob);
+        
+        audio.play().catch(e => console.log(e));
+        mainPlayBtn.textContent = "⏸";
+        renderPlaylist();
+    }
+
+    function togglePlay() {
+        if (!audio.src && songs.length > 0) { playSong(currentIndex); return; }
+        initAudioPipeline();
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        if (audio.paused) { audio.play(); mainPlayBtn.textContent = "⏸"; } 
+        else { audio.pause(); mainPlayBtn.textContent = "▶"; }
+    }
+
+    function prevSong() { if (songs.length === 0) return; playSong((currentIndex - 1 + songs.length) % songs.length); }
+    function nextSong() {
+        if (songs.length === 0) return;
+        if (isShuffle) {
+            if (shuffledIndices.length === 0) generateShuffleList();
+            const nextIdx = shuffledIndices.shift();
+            if (nextIdx !== undefined) playSong(nextIdx);
+        } else { playSong((currentIndex + 1) % songs.length); }
+    }
+
+    audio.onended = () => { if (isRepeat) playSong(currentIndex); else nextSong(); };
+
+    audio.ontimeupdate = () => {
+        if(isNaN(audio.duration)) return;
+        progressSlider.max = audio.duration;
+        progressSlider.value = audio.currentTime;
+        currentTimeEl.textContent = formatTime(audio.currentTime);
+        durationTimeEl.textContent = formatTime(audio.duration);
+    };
+
+    progressSlider.addEventListener('input', () => audio.currentTime = progressSlider.value);
+
+    function formatTime(secs) {
+        const m = Math.floor(secs / 60); const s = Math.floor(secs % 60);
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    function toggleShuffle() {
+        isShuffle = !isShuffle;
+        shuffleBtn.textContent = "🔀 Shuffle: " + (isShuffle ? "An" : "Aus");
+        shuffleBtn.classList.toggle('mode-on', isShuffle);
+        if (isShuffle) generateShuffleList();
+    }
+
+    function generateShuffleList() {
+        shuffledIndices = songs.map((s, i) => i);
+        for (let i = shuffledIndices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffledIndices[i], shuffledIndices[j]] = [shuffledIndices[j], shuffledIndices[i]];
+        }
+    }
+
+    function toggleRepeat() {
+        isRepeat = !isRepeat;
+        repeatBtn.textContent = "🔁 Repeat: " + (isRepeat ? "An" : "Aus");
+        repeatBtn.classList.toggle('mode-on', isRepeat);
+    }
+
+    async function toggleWakeLock() {
+        if (!('wakeLock' in navigator)) return;
+        if (!isWakeLockActive) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            isWakeLockActive = true;
+            wakeLockBtn.textContent = "📱 Display: IMMER AN";
+            wakeLockBtn.classList.add('mode-on');
+        } else {
+            isWakeLockActive = false; if (wakeLock) await wakeLock.release();
+            wakeLockBtn.textContent = "📱 Display: Normal";
+            wakeLockBtn.classList.remove('mode-on');
+        }
+    }
+
+    function updateTrackTitleText() {
+        trackTitle.textContent = currentTrackText;
+        trackTitle.style.animation = "none"; 
+        setTimeout(() => {
+            const containerWidth = trackBox.clientWidth - 30;
+            const textWidth = trackTitle.offsetWidth;
+            if (textWidth > containerWidth) {
+                const scrollDistance = -(textWidth - containerWidth);
+                trackTitle.style.setProperty('--scroll-distance', `${scrollDistance}px`);
+                const duration = Math.max(6, (textWidth - containerWidth) / 30);
+                trackTitle.style.animation = `marquee ${duration}s linear infinite`;
+            }
+        }, 50);
+    }
+
+    function switchPage(pageId, btn) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active-tab'));
+        document.getElementById(pageId).classList.add('active-page');
+        btn.classList.add('active-tab');
+        if (pageId === 'player-page') { updateTrackTitleText(); resizeCanvas(); }
+    }
+
+    function clearAll() {
+        audio.pause(); audio.src = "";
+        if(animationId) cancelAnimationFrame(animationId);
+        songs = []; shuffledIndices = [];
+        localStorage.clear();
+        renderPlaylist();
+        canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+        folderListEl.innerHTML = "Keine Ordner verknüpft";
+        currentTrackText = "Keine Lieder geladen"; updateTrackTitleText();
+        clearSleep();
+    }
+
+    // --- TIMING FUNKTIONEN MIT AKTIV-GRÜN STATUS ---
+    function setSleep(mins) {
+        clearTimeout(sleepTimer);
+        
+        // Alle Timer-Buttons entfärben
+        document.querySelectorAll('.timer-controls button').forEach(btn => {
+            btn.classList.remove('timer-active');
+        });
+        
+        // Aktiven Button grün färben
+        const activeBtn = document.getElementById(`timer-${mins}`);
+        if (activeBtn) activeBtn.classList.add('timer-active');
+
+        const origVol = parseFloat(volumeSlider.value);
+        sleepStatus.textContent = "🚀 Stopp in " + mins + " Min";
+        
+        sleepTimer = setTimeout(() => {
+            let currentVol = origVol;
+            let fade = setInterval(() => {
+                if (currentVol > 0.05) {
+                    currentVol -= 0.05;
+                    if(gainNode) gainNode.gain.setValueAtTime(currentVol, audioCtx.currentTime);
+                } else { 
+                    audio.pause(); 
+                    if(gainNode) gainNode.gain.setValueAtTime(origVol, audioCtx.currentTime);
+                    volumeSlider.value = origVol;
+                    mainPlayBtn.textContent = "▶"; 
+                    clearInterval(fade);
+                    clearSleep();
+                }
+            }, 300);
+        }, mins * 60000);
+    }
+
+    function clearSleep() { 
+        clearTimeout(sleepTimer); 
+        sleepStatus.textContent = "Sleep-Timer: Aus"; 
+        document.querySelectorAll('.timer-controls button').forEach(btn => {
+            btn.classList.remove('timer-active');
+        });
+    }
+</script>
+</body>
+</html>
