@@ -30,7 +30,7 @@
         .btn-stop { grid-column: span 4; background: #400 !important; color: #ff6b6b !important; }
         #sleep-status { text-align: center; font-size: 0.85rem; color: #1db954; font-weight: bold; }
 
-        /* Aktivierter grüner Timer-Button */
+        /* Grüner Leuchteffekt für aktiven Timer */
         .timer-active { background: #1db954 !important; color: #000 !important; }
 
         .mode-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
@@ -194,8 +194,8 @@
         // PWA Service Worker & Manifest Registrierung
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
-                .then(() => console.log('Service Worker registriert!'))
-                .catch(err => console.log('Service Worker Fehler:', err));
+                .then(() => console.log('PWA Service Worker aktiv!'))
+                .catch(err => console.log('PWA Fehler:', err));
         }
         if (!document.querySelector('link[rel="manifest"]')) {
             const link = document.createElement('link');
@@ -469,16 +469,14 @@
         clearSleep();
     }
 
-    // --- TIMING FUNKTIONEN MIT AKTIV-GRÜN STATUS ---
+    // --- SLEEP TIMER ---
     function setSleep(mins) {
         clearTimeout(sleepTimer);
         
-        // Alle Timer-Buttons entfärben
         document.querySelectorAll('.timer-controls button').forEach(btn => {
             btn.classList.remove('timer-active');
         });
         
-        // Aktiven Button grün färben
         const activeBtn = document.getElementById(`timer-${mins}`);
         if (activeBtn) activeBtn.classList.add('timer-active');
 
