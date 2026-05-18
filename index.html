@@ -30,7 +30,6 @@
         .btn-stop { grid-column: span 4; background: #400 !important; color: #ff6b6b !important; }
         #sleep-status { text-align: center; font-size: 0.85rem; color: #1db954; font-weight: bold; }
 
-        /* Grüner Leuchteffekt für aktiven Timer */
         .timer-active { background: #1db954 !important; color: #000 !important; }
 
         .mode-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
@@ -136,10 +135,7 @@
     <div id="playlist-page" class="page">
         <div class="folder-management">
             <div class="folder-list" id="folderList">Keine Ordner verknüpft</div>
-            
-            <input type="file" id="directoryInput" webkitdirectory directory multiple style="display:none;" onchange="handleFolderSelect(this.files)">
-            <button class="btn-add-folder" id="addFolderBtn" onclick="document.getElementById('directoryInput').click()">➕ Ordner hinzufügen</button>
-            
+            <button class="btn-add-folder" id="addFolderBtn" onclick="addNewFolder()">➕ Ordner hinzufügen</button>
             <button class="btn-clear-all" onclick="clearAll()">🗑 Alle Daten löschen</button>
         </div>
 
@@ -149,6 +145,7 @@
     </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
 <script>
     const audio = document.getElementById('audio');
     const trackBox = document.getElementById('trackBox');
@@ -171,6 +168,7 @@
     const canvas = document.getElementById('visualizer');
     const canvasCtx = canvas.getContext('2d');
 
+    let folderHandles = []; 
     let songs = [];
     let currentIndex = 0;
     let sleepTimer = null;
@@ -190,11 +188,11 @@
     let analyserNode = null; 
     let animationId = null;
 
-    window.onload = function() {
+    window.onload = async function() {
         // PWA Service Worker & Manifest Registrierung
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
-                .then(() => console.log('PWA Service Worker aktiv!'))
+                .then(() => console.log('PWA aktiv!'))
                 .catch(err => console.log('PWA Fehler:', err));
         }
         if (!document.querySelector('link[rel="manifest"]')) {
@@ -202,6 +200,13 @@
             link.rel = 'manifest';
             link.href = 'manifest.json';
             document.head.appendChild(link);
+        }
+
+        // Automatisch gespeicherte Musikordner aus der Browser-Datenbank wiederherstellen
+        const savedHandles = await localforage.getItem('player_folder_handles');
+        if (savedHandles && savedHandles.length > 0) {
+            folderHandles = savedHandles;
+            await reloadAllFolders();
         }
 
         const savedIndex = localStorage.getItem('player_current_index');
@@ -301,35 +306,51 @@
         else audio.volume = val;
     });
 
-    function handleFolderSelect(fileList) {
-        if (fileList.length === 0) return;
-
-        let mainFolderName = "Musik Ordner";
-        if (fileList[0] && fileList[0].webkitRelativePath) {
-            mainFolderName = fileList[0].webkitRelativePath.split('/')[0];
-        }
-
-        folderListEl.innerHTML = `<div class="folder-item" style="color:#1db954">✔ ${mainFolderName}</div>`;
-        songs = [];
-
-        for (let file of fileList) {
-            if (/\.(mp3|wav|ogg|m4a|flac)$/i.test(file.name)) {
-                songs.push({
-                    name: file.name.replace(/\.[^/.]+$/, ""),
-                    fileBlob: file
-                });
+    // --- DAUERHAFTE ORDNERAUSWAHL (MERKT SICH DEN ORDNER) ---
+    async function addNewFolder() {
+        try {
+            const handle = await window.showDirectoryPicker();
+            if (!folderHandles.some(h => h.name === handle.name)) {
+                folderHandles.push(handle);
+                await localforage.setItem('player_folder_handles', folderHandles);
             }
-        }
+            await reloadAllFolders();
+        } catch (err) { console.log(err); }
+    }
 
+    async function reloadAllFolders() {
+        songs = []; folderListEl.innerHTML = "";
+        for (let handle of folderHandles) {
+            const options = { mode: 'read' };
+            // Prüft, ob die Berechtigung für diesen Ordner noch aktiv ist
+            if (await handle.queryPermission(options) !== 'granted') {
+                folderListEl.innerHTML += `<div class="folder-item" style="color:#ffcc00">🔑 ${handle.name} <span style="font-size:0.75rem">(Zustimmung erforderlich)</span></div>`;
+                currentTrackText = "Klicke auf den Ordner-Button, um deine Playlist zu aktivieren!";
+                updateTrackTitleText();
+                continue;
+            }
+            
+            folderListEl.innerHTML += `<div class="folder-item" style="color:#1db954">✔ ${handle.name}</div>`;
+            
+            // Rekursive Suche in allen Unterordnern
+            async function readDirectory(dirHandle) {
+                for await (const entry of dirHandle.values()) {
+                    if (entry.kind === 'file' && /\.(mp3|wav|ogg|m4a|flac)$/i.test(entry.name)) {
+                        songs.push({ name: entry.name.replace(/\.[^/.]+$/, ""), fileEntry: entry });
+                    } else if (entry.kind === 'directory') {
+                        await readDirectory(entry);
+                    }
+                }
+            }
+            await readDirectory(handle);
+        }
+        
         renderPlaylist();
         if (isShuffle) generateShuffleList();
         
         if (songs.length > 0) {
-            currentIndex = 0;
-            currentTrackText = songs[currentIndex].name;
-            updateTrackTitleText();
-        } else {
-            currentTrackText = "Keine unterstützten Musikdateien gefunden!";
+            if (currentIndex >= songs.length) currentIndex = 0;
+            currentTrackText = songs[currentIndex]?.name || "Bereit";
             updateTrackTitleText();
         }
     }
@@ -348,6 +369,16 @@
 
     async function playSong(index) {
         if (songs.length === 0 || !songs[index]) return;
+        
+        // Falls Berechtigung beim App-Neustart noch fehlt, fordern wir sie beim Klick an
+        for (let handle of folderHandles) {
+            if (await handle.queryPermission({ mode: 'read' }) !== 'granted') {
+                await handle.requestPermission({ mode: 'read' });
+                await reloadAllFolders();
+                if (songs.length === 0) return;
+            }
+        }
+
         initAudioPipeline();
         if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
@@ -356,8 +387,9 @@
         updateTrackTitleText();
         localStorage.setItem('player_current_index', currentIndex);
         
+        const file = await songs[index].fileEntry.getFile();
         if (audio.src) URL.revokeObjectURL(audio.src);
-        audio.src = URL.createObjectURL(songs[index].fileBlob);
+        audio.src = URL.createObjectURL(file);
         
         audio.play().catch(e => console.log(e));
         mainPlayBtn.textContent = "⏸";
@@ -398,6 +430,8 @@
         const m = Math.floor(secs / 60); const s = Math.floor(secs % 60);
         return `${m}:${s < 10 ? '0' : ''}${s}`;
     }
+
+    document.title = "Ultimate Music Player";
 
     function toggleShuffle() {
         isShuffle = !isShuffle;
@@ -460,8 +494,8 @@
     function clearAll() {
         audio.pause(); audio.src = "";
         if(animationId) cancelAnimationFrame(animationId);
-        songs = []; shuffledIndices = [];
-        localStorage.clear();
+        songs = []; folderHandles = []; shuffledIndices = [];
+        localforage.clear(); localStorage.clear();
         renderPlaylist();
         canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
         folderListEl.innerHTML = "Keine Ordner verknüpft";
@@ -469,20 +503,14 @@
         clearSleep();
     }
 
-    // --- SLEEP TIMER ---
     function setSleep(mins) {
         clearTimeout(sleepTimer);
-        
-        document.querySelectorAll('.timer-controls button').forEach(btn => {
-            btn.classList.remove('timer-active');
-        });
-        
+        document.querySelectorAll('.timer-controls button').forEach(btn => btn.classList.remove('timer-active'));
         const activeBtn = document.getElementById(`timer-${mins}`);
         if (activeBtn) activeBtn.classList.add('timer-active');
 
         const origVol = parseFloat(volumeSlider.value);
         sleepStatus.textContent = "🚀 Stopp in " + mins + " Min";
-        
         sleepTimer = setTimeout(() => {
             let currentVol = origVol;
             let fade = setInterval(() => {
@@ -493,20 +521,17 @@
                     audio.pause(); 
                     if(gainNode) gainNode.gain.setValueAtTime(origVol, audioCtx.currentTime);
                     volumeSlider.value = origVol;
-                    mainPlayBtn.textContent = "▶"; 
-                    clearInterval(fade);
+                    mainPlayBtn.textContent = "▶"; clearInterval(fade);
                     clearSleep();
                 }
             }, 300);
         }, mins * 60000);
     }
-
+    
     function clearSleep() { 
         clearTimeout(sleepTimer); 
         sleepStatus.textContent = "Sleep-Timer: Aus"; 
-        document.querySelectorAll('.timer-controls button').forEach(btn => {
-            btn.classList.remove('timer-active');
-        });
+        document.querySelectorAll('.timer-controls button').forEach(btn => btn.classList.remove('timer-active'));
     }
 </script>
 </body>
