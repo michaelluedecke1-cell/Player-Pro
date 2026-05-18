@@ -2,7 +2,7 @@
   "name": "Ultimate Music Player",
   "short_name": "Music Player",
   "description": "Ein installierbarer, offline-fähiger Musikplayer.",
-  "start_url": "player15.html",
+  "start_url": "index.html",
   "display": "standalone",
   "background_color": "#121212",
   "theme_color": "#1db954",
@@ -16,5 +16,3 @@
     }
   ]
 }
-
-
