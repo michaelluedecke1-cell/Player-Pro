@@ -30,7 +30,7 @@
         .storage-status { font-size: 0.85rem; color: #1db954; font-weight: bold; padding: 2px 5px; text-align: center; background: #1a1a1a; border-radius: 6px; }
         
         .btn-add-folder { width: 100%; padding: 14px; background: #1db954; color: #000; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.95rem; text-align: center; display: block; box-sizing: border-box; }
-        .btn-add-files { width: 100%; padding: 12px; background: #333; color: #1db954; border: 1px solid #1db954; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.85rem; text-align: center; display: block; box-sizing: border-box; transition: background 0.2s; }
+        .btn-add-files { width: 100%; padding: 10px; background: #333; color: #1db954; border: 1px solid #1db954; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.85rem; text-align: center; display: block; box-sizing: border-box; transition: background 0.2s; }
         .btn-add-files:hover { background: #2a2a2a; }
         
         .btn-clear-all { width: 100%; padding: 10px; background: #500; color: #ff6b6b; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; margin-top: 4px; }
@@ -247,7 +247,7 @@
     const canvas = document.getElementById('visualizer');
     const canvasCtx = canvas.getContext('2d');
 
-    let songs = []; // Enthält Objekte: {name: "...", fileBlob: Blob, duration: "..."}
+    let songs = []; 
     let currentFilteredIndices = []; 
     let currentIndex = 0; 
     let sleepTimer = null;
@@ -269,15 +269,23 @@
     let eqGains = [0, 0, 0, 0, 0]; 
     let animationId = null;
 
-    // Konfiguration für localForage, um große Binärdaten (Blobs) zu erlauben
     localforage.config({
         name: 'UltimateMusicPlayerDB',
         storeName: 'songs_store'
     });
 
+    // --- REPARIERTER PWA CODE: Exakt wie in deiner funktionierenden Vorversion ---
     window.onload = async function() {
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('PWA aktiv!'))
+                .catch(err => console.log('PWA Fehler:', err));
+        }
+        if (!document.querySelector('link[rel="manifest"]')) {
+            const link = document.createElement('link');
+            link.rel = 'manifest';
+            link.href = 'manifest.json';
+            document.head.appendChild(link);
         }
 
         const savedEQ = localStorage.getItem('player_eq_gains');
@@ -289,7 +297,6 @@
             }
         }
 
-        // --- NEU: Lieder beim Start direkt aus der internen Datenbank laden ---
         storageStatus.textContent = "⏳ Lade gespeicherte Lieder...";
         try {
             const dbSongs = await localforage.getItem('offline_songs_list');
@@ -323,7 +330,6 @@
         resizeCanvas();
     }
 
-    // --- NEU: Verarbeitet den Import und speichert die echten Dateien ab ---
     async function handleFileImport(fileList) {
         if (fileList.length === 0) return;
         
@@ -332,10 +338,9 @@
         
         for (let file of fileList) {
             if (/\.(mp3|wav|ogg|m4a|flac)$/i.test(file.name)) {
-                // Wir speichern den reinen Namen und das echte Dateipaket (Blob)
                 importedTracks.push({
                     name: file.name.replace(/\.[^/.]+$/, ""),
-                    fileBlob: file, // Das ist das Binärpaket
+                    fileBlob: file, 
                     duration: ""
                 });
             }
@@ -346,16 +351,13 @@
             return;
         }
 
-        // Zu den bestehenden Songs hinzufügen
         songs = songs.concat(importedTracks);
         
-        // In der Datenbank für immer sichern
         try {
             await localforage.setItem('offline_songs_list', songs);
             storageStatus.textContent = `✔ ${songs.length} Lieder erfolgreich gespeichert!`;
             renderPlaylist();
             
-            // Längen im Hintergrund berechnen
             songs.forEach((song, i) => {
                 if(!song.duration) fetchTrackDuration(i);
             });
@@ -372,7 +374,6 @@
         }
     }
 
-    // --- NEU: Alle Daten aus dem persistenten Speicher löschen ---
     async function clearAllData() {
         if(confirm("Möchtest du wirklich alle Lieder dauerhaft aus dem Player-Speicher löschen?")) {
             audio.pause(); audio.src = "";
@@ -455,18 +456,6 @@
         }
     }
 
-    function resetEQ() {
-        eqGains = [0, 0, 0, 0, 0];
-        localStorage.setItem('player_eq_gains', JSON.stringify(eqGains));
-        for(let i=0; i<5; i++) {
-            document.getElementById(`eq-band-${i}`).value = 0;
-            document.getElementById(`eq-v${i}`).textContent = "0dB";
-            if (audioCtx && eqFilters[i]) {
-                eqFilters[i].gain.setValueAtTime(0, audioCtx.currentTime);
-            }
-        }
-    }
-
     function updateMediaSession() {
         if ('mediaSession' in navigator && songs[currentIndex]) {
             navigator.mediaSession.metadata = new MediaMetadata({
@@ -537,7 +526,6 @@
             URL.revokeObjectURL(url);
             updateSingleTrackDurationUI(index, songs[index].duration);
             updateTotalDurationUI();
-            // Updaten der DB mit den ermittelten Längen
             localforage.setItem('offline_songs_list', songs);
         };
     }
