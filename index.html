@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate Music Player v16 (Persistent Storage Edition)</title>
+    <title>Ultimate Music Player v16.2 (EQ Fix Edition)</title>
     <style>
         body { background: #121212; color: #fff; font-family: sans-serif; display: flex; justify-content: center; padding: 10px; margin: 0; }
         
@@ -83,17 +83,16 @@
         .playlist { max-height: 250px; overflow-y: auto; scroll-behavior: smooth; }
         .item { padding: 12px 14px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 0.95rem; transition: background 0.2s; }
         .item:hover { background: #2a2a2a; }
-        .item-text { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px; }
-        .item-duration { font-size: 0.8rem; color: #888; white-space: nowrap; }
+        
+        .item-left { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px; }
+        .item-right { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+        .item-duration { font-size: 0.8rem; color: #888; }
+        
+        .btn-delete-track { background: transparent; border: none; color: #ff4444; cursor: pointer; font-size: 0.9rem; padding: 2px 6px; border-radius: 4px; transition: background 0.2s; }
+        .btn-delete-track:hover { background: rgba(255, 68, 68, 0.15); }
+        
         .active-track { color: #1db954; font-weight: bold; background: #252525 !important; border-radius: 5px; }
         .active-track .item-duration { color: #1db954; }
-
-        /* Equalizer Styling */
-        .eq-container { background: #252525; padding: 20px; border-radius: 15px; border: 1px solid #333; display: flex; justify-content: space-around; height: 260px; align-items: center; }
-        .eq-slider-wrapper { display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: space-between; }
-        .eq-slider-wrapper input[type="range"] { orientation: vertical; -webkit-appearance: slider-vertical; width: 12px; height: 170px; background: #444; }
-        .eq-label { font-size: 0.75rem; color: #b3b3b3; font-weight: bold; }
-        .eq-value { font-size: 0.8rem; color: #1db954; font-weight: bold; min-width: 35px; text-align: center; }
 
         /* TABLETS (Große Bildschirme) */
         @media (min-width: 600px) {
@@ -274,7 +273,6 @@
         storeName: 'songs_store'
     });
 
-    // --- REPARIERTER PWA CODE: Exakt wie in deiner funktionierenden Vorversion ---
     window.onload = async function() {
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
@@ -390,6 +388,38 @@
         }
     }
 
+    async function deleteSingleTrack(index, event) {
+        event.stopPropagation();
+        
+        if (confirm(`Möchtest du "${songs[index].name}" wirklich löschen?`)) {
+            if (index === currentIndex && !audio.paused) {
+                audio.pause();
+                audio.src = "";
+                mainPlayBtn.textContent = "▶";
+                currentTrackText = "Lied gelöscht";
+                updateTrackTitleText();
+            }
+
+            songs.splice(index, 1);
+            
+            if (currentIndex >= songs.length && songs.length > 0) {
+                currentIndex = songs.length - 1;
+            }
+
+            try {
+                await localforage.setItem('offline_songs_list', songs);
+                storageStatus.textContent = `✔ Lied entfernt (${songs.length} verbleibend)`;
+                if (isShuffle) generateShuffleList();
+                renderPlaylist();
+                if (songs.length === 0) {
+                    clearAllData();
+                }
+            } catch (err) {
+                console.error("Fehler beim Löschen:", err);
+            }
+        }
+    }
+
     function initAudioPipeline() {
         if (audioCtx) return; 
 
@@ -456,6 +486,19 @@
         }
     }
 
+    // --- REPARIERT: Funktion setzt jetzt die Regler fehlerfrei zurück ---
+    function resetEQ() {
+        eqGains = [0, 0, 0, 0, 0];
+        localStorage.setItem('player_eq_gains', JSON.stringify(eqGains));
+        for(let i=0; i<5; i++) {
+            document.getElementById(`eq-band-${i}`).value = 0;
+            document.getElementById(`eq-v${i}`).textContent = "0dB";
+            if (audioCtx && eqFilters[i]) {
+                eqFilters[i].gain.setValueAtTime(0, audioCtx.currentTime);
+            }
+        }
+    }
+
     function updateMediaSession() {
         if ('mediaSession' in navigator && songs[currentIndex]) {
             navigator.mediaSession.metadata = new MediaMetadata({
@@ -466,6 +509,7 @@
         }
     }
 
+    // Rest der Audio-Logik...
     function setupMediaSessionHandlers() {
         if ('mediaSession' in navigator) {
             navigator.mediaSession.setActionHandler('play', () => togglePlay());
@@ -572,9 +616,15 @@
             const div = document.createElement('div');
             div.id = `track-item-${index}`;
             div.className = 'item' + (index === currentIndex && audio.src ? ' active-track' : '');
+            
             div.innerHTML = `
-                <span class="item-text" onclick="playSong(${index})">${currentFilteredIndices.length}. ${song.name}</span>
-                <span class="item-duration" id="duration-span-${index}">${song.duration || '--:--'}</span>
+                <div class="item-left" onclick="playSong(${index})">
+                    ${currentFilteredIndices.length}. ${song.name}
+                </div>
+                <div class="item-right">
+                    <span class="item-duration" id="duration-span-${index}">${song.duration || '--:--'}</span>
+                    <button class="btn-delete-track" onclick="deleteSingleTrack(${index}, event)">❌</button>
+                </div>
             `;
             playlistEl.appendChild(div);
         });
@@ -668,6 +718,7 @@
         return `${m}:${s < 10 ? '0' : ''}${s}`;
     }
 
+    // Rest der Hilfsfunktionen...
     function toggleShuffle() {
         isShuffle = !isShuffle;
         shuffleBtn.textContent = "🔀 Shuffle: " + (isShuffle ? "An" : "Aus");
