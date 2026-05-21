@@ -1,18 +1,19 @@
 {
-  "name": "Ultimate Music Player",
+  "name": "Ultimate Music Player SD",
   "short_name": "Music Player",
-  "description": "Ein installierbarer, offline-fähiger Musikplayer.",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#121212",
   "theme_color": "#1db954",
-  "orientation": "portrait-primary",
+  "orientation": "portrait",
   "icons": [
     {
-      "src": "https://images.icon-icons.com/1147/PNG/96/1486486316-arrow-film-movie-play-player-start-video_81236.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/196/196122.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
   ]
 }
+
+
