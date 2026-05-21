@@ -1,16 +1,30 @@
+```html
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate Music Player v16.2 (EQ Fix Edition)</title>
+    <title>Ultimate Music Player v16.4 (EQ Fix Edition)</title>
     <style>
-        body { background: #121212; color: #fff; font-family: sans-serif; display: flex; justify-content: center; padding: 10px; margin: 0; }
+        /* Verhindert das Pull-to-Refresh-Verhalten auf Mobilgeräten */
+        html, body {
+            overscroll-behavior-y: contain;
+        }
+
+        body { 
+            background: #121212; 
+            color: #fff; 
+            font-family: sans-serif; 
+            display: flex; 
+            justify-content: center; 
+            padding: 10px; 
+            margin: 0; 
+        }
         
-        /* HANDY-STANDARD: Schön kompakt */
+        /* ETWAS BREITERER HANDY-STANDARD (Von 400px auf 425px erhöht) */
         .player { 
             width: 100%; 
-            max-width: 400px; 
+            max-width: 425px; 
             background: #1e1e1e; 
             padding: 20px; 
             border-radius: 20px; 
@@ -94,6 +108,59 @@
         .active-track { color: #1db954; font-weight: bold; background: #252525 !important; border-radius: 5px; }
         .active-track .item-duration { color: #1db954; }
 
+        /* Stilvolles Custom Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-box {
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 15px;
+            max-width: 320px;
+            width: 90%;
+            border: 1px solid #333;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .modal-text {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            color: #fff;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .modal-btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .btn-yes {
+            background: #ff4444;
+            color: white;
+        }
+        .btn-no {
+            background: #333;
+            color: white;
+            border: 1px solid #444;
+        }
+
         /* TABLETS (Große Bildschirme) */
         @media (min-width: 600px) {
             .player { max-width: 700px; padding: 30px; }
@@ -120,6 +187,7 @@
         <button class="tab-btn" onclick="switchPage('eq-page', this)">🎛️ EQ</button>
     </div>
 
+    <!-- PLAYER SEITE -->
     <div id="player-page" class="page active-page">
         <div class="timer-container">
             <div class="timer-controls">
@@ -172,6 +240,7 @@
         <audio id="audio" style="display:none" crossorigin="anonymous"></audio>
     </div>
 
+    <!-- WIEDERGABELISTE SEITE -->
     <div id="playlist-page" class="page">
         <div class="folder-management">
             <div class="storage-status" id="storageStatus">Speicher-Status: Bereit</div>
@@ -190,6 +259,7 @@
         <div class="playlist" id="playlist"></div>
     </div>
 
+    <!-- EQUALIZER SEITE -->
     <div id="eq-page" class="page">
         <h3 style="margin-top: 0; text-align: center; color: #1db954;">5-Band Grafik-Equalizer</h3>
         <div class="eq-container">
@@ -223,8 +293,52 @@
     </div>
 </div>
 
+<!-- Custom Confirmation Modal -->
+<div class="modal-overlay" id="customConfirmModal">
+    <div class="modal-box">
+        <p class="modal-text" id="confirmMessage">Möchtest du das wirklich tun?</p>
+        <div class="modal-actions">
+            <button class="modal-btn btn-yes" id="confirmYesBtn">Ja</button>
+            <button class="modal-btn btn-no" id="confirmNoBtn">Nein</button>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
 <script>
+    // Absturzsichere Ausweich-Speicher für eingeschränkte iFrame/Sandbox-Vorschauen
+    const safeLocalStorage = {
+        getItem: function(key) {
+            try { return localStorage.getItem(key); } catch (e) { return null; }
+        },
+        setItem: function(key, val) {
+            try { localStorage.setItem(key, val); } catch (e) {}
+        },
+        clear: function() {
+            try { localStorage.clear(); } catch (e) {}
+        }
+    };
+
+    // Custom Modal System (Ersetzt confirm() komplett)
+    function showCustomConfirm(message, callback) {
+        const modal = document.getElementById('customConfirmModal');
+        const msgEl = document.getElementById('confirmMessage');
+        const yesBtn = document.getElementById('confirmYesBtn');
+        const noBtn = document.getElementById('confirmNoBtn');
+        
+        msgEl.textContent = message;
+        modal.style.display = 'flex';
+        
+        yesBtn.onclick = function() {
+            modal.style.display = 'none';
+            callback(true);
+        };
+        noBtn.onclick = function() {
+            modal.style.display = 'none';
+            callback(false);
+        };
+    }
+
     const audio = document.getElementById('audio');
     const trackBox = document.getElementById('trackBox');
     const trackTitle = document.getElementById('trackTitle');
@@ -268,16 +382,18 @@
     let eqGains = [0, 0, 0, 0, 0]; 
     let animationId = null;
 
-    localforage.config({
-        name: 'UltimateMusicPlayerDB',
-        storeName: 'songs_store'
-    });
+    if (typeof localforage !== 'undefined') {
+        try {
+            localforage.config({
+                name: 'UltimateMusicPlayerDB',
+                storeName: 'songs_store'
+            });
+        } catch(e) {}
+    }
 
     window.onload = async function() {
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js')
-                .then(() => console.log('PWA aktiv!'))
-                .catch(err => console.log('PWA Fehler:', err));
+            navigator.serviceWorker.register('sw.js').catch(() => {});
         }
         if (!document.querySelector('link[rel="manifest"]')) {
             const link = document.createElement('link');
@@ -286,25 +402,32 @@
             document.head.appendChild(link);
         }
 
-        const savedEQ = localStorage.getItem('player_eq_gains');
+        const savedEQ = safeLocalStorage.getItem('player_eq_gains');
         if (savedEQ) {
-            eqGains = JSON.parse(savedEQ);
-            for(let i=0; i<5; i++) {
-                document.getElementById(`eq-band-${i}`).value = eqGains[i];
-                document.getElementById(`eq-v${i}`).textContent = (eqGains[i] > 0 ? "+" : "") + eqGains[i] + "dB";
-            }
+            try {
+                eqGains = JSON.parse(savedEQ);
+                for(let i=0; i<5; i++) {
+                    const el = document.getElementById(`eq-band-${i}`);
+                    if(el) el.value = eqGains[i];
+                    const vEl = document.getElementById(`eq-v${i}`);
+                    if(vEl) vEl.textContent = (eqGains[i] > 0 ? "+" : "") + eqGains[i] + "dB";
+                }
+            } catch(e) {}
         }
 
         storageStatus.textContent = "⏳ Lade gespeicherte Lieder...";
         try {
-            const dbSongs = await localforage.getItem('offline_songs_list');
+            let dbSongs = null;
+            if (typeof localforage !== 'undefined') {
+                dbSongs = await localforage.getItem('offline_songs_list').catch(() => null);
+            }
             if (dbSongs && dbSongs.length > 0) {
                 songs = dbSongs;
                 storageStatus.textContent = `✔ ${songs.length} Lieder offline verfügbar`;
                 renderPlaylist();
                 
-                const savedIndex = localStorage.getItem('player_current_index');
-                if (savedIndex) currentIndex = parseInt(savedIndex);
+                const savedIndex = safeLocalStorage.getItem('player_current_index');
+                if (savedIndex) currentIndex = parseInt(savedIndex) || 0;
                 if (currentIndex >= songs.length) currentIndex = 0;
 
                 currentTrackText = songs[currentIndex]?.name || "Bereit";
@@ -318,7 +441,7 @@
             console.error(err);
         }
 
-        const savedNorm = localStorage.getItem('player_normalization');
+        const savedNorm = safeLocalStorage.getItem('player_normalization');
         if (savedNorm === "true") {
             isNormalized = true;
             normBtn.classList.add('mode-on');
@@ -352,7 +475,9 @@
         songs = songs.concat(importedTracks);
         
         try {
-            await localforage.setItem('offline_songs_list', songs);
+            if (typeof localforage !== 'undefined') {
+                await localforage.setItem('offline_songs_list', songs).catch(() => {});
+            }
             storageStatus.textContent = `✔ ${songs.length} Lieder erfolgreich gespeichert!`;
             renderPlaylist();
             
@@ -372,85 +497,98 @@
         }
     }
 
-    async function clearAllData() {
-        if(confirm("Möchtest du wirklich alle Lieder dauerhaft aus dem Player-Speicher löschen?")) {
-            audio.pause(); audio.src = "";
-            if(animationId) cancelAnimationFrame(animationId);
-            songs = []; shuffledIndices = []; currentFilteredIndices = [];
-            await localforage.clear();
-            localStorage.clear();
-            renderPlaylist();
-            resetEQ();
-            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-            storageStatus.textContent = "Speicher leer. Bitte Musik importieren!";
-            currentTrackText = "Keine Lieder gespeichert"; updateTrackTitleText();
-            clearSleep();
-        }
+    function clearAllData() {
+        showCustomConfirm("Möchtest du wirklich alle Lieder dauerhaft aus dem Player-Speicher löschen?", async (confirmed) => {
+            if (confirmed) {
+                audio.pause(); audio.src = "";
+                if(animationId) cancelAnimationFrame(animationId);
+                songs = []; shuffledIndices = []; currentFilteredIndices = [];
+                if (typeof localforage !== 'undefined') {
+                    await localforage.clear().catch(() => {});
+                }
+                safeLocalStorage.clear();
+                renderPlaylist();
+                resetEQ();
+                canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+                storageStatus.textContent = "Speicher leer. Bitte Musik importieren!";
+                currentTrackText = "Keine Lieder gespeichert"; updateTrackTitleText();
+                clearSleep();
+            }
+        });
     }
 
-    async function deleteSingleTrack(index, event) {
+    function deleteSingleTrack(index, event) {
         event.stopPropagation();
         
-        if (confirm(`Möchtest du "${songs[index].name}" wirklich löschen?`)) {
-            if (index === currentIndex && !audio.paused) {
-                audio.pause();
-                audio.src = "";
-                mainPlayBtn.textContent = "▶";
-                currentTrackText = "Lied gelöscht";
-                updateTrackTitleText();
-            }
-
-            songs.splice(index, 1);
-            
-            if (currentIndex >= songs.length && songs.length > 0) {
-                currentIndex = songs.length - 1;
-            }
-
-            try {
-                await localforage.setItem('offline_songs_list', songs);
-                storageStatus.textContent = `✔ Lied entfernt (${songs.length} verbleibend)`;
-                if (isShuffle) generateShuffleList();
-                renderPlaylist();
-                if (songs.length === 0) {
-                    clearAllData();
+        showCustomConfirm(`Möchtest du "${songs[index].name}" wirklich löschen?`, async (confirmed) => {
+            if (confirmed) {
+                if (index === currentIndex && !audio.paused) {
+                    audio.pause();
+                    audio.src = "";
+                    mainPlayBtn.textContent = "▶";
+                    currentTrackText = "Lied gelöscht";
+                    updateTrackTitleText();
                 }
-            } catch (err) {
-                console.error("Fehler beim Löschen:", err);
+
+                songs.splice(index, 1);
+                
+                if (currentIndex >= songs.length && songs.length > 0) {
+                    currentIndex = songs.length - 1;
+                }
+
+                try {
+                    if (typeof localforage !== 'undefined') {
+                        await localforage.setItem('offline_songs_list', songs).catch(() => {});
+                    }
+                    storageStatus.textContent = `✔ Lied entfernt (${songs.length} verbleibend)`;
+                    if (isShuffle) generateShuffleList();
+                    renderPlaylist();
+                    if (songs.length === 0) {
+                        clearAllData();
+                    }
+                } catch (err) {
+                    console.error("Fehler beim Löschen:", err);
+                }
             }
-        }
+        });
     }
 
     function initAudioPipeline() {
         if (audioCtx) return; 
 
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        sourceNode = audioCtx.createMediaElementSource(audio);
-        
-        const frequencies = [60, 230, 910, 4000, 14000];
-        eqFilters = frequencies.map((freq, index) => {
-            const filter = audioCtx.createBiquadFilter();
-            filter.type = 'peaking';
-            filter.frequency.value = freq;
-            filter.Q.value = 1.0; 
-            filter.gain.value = eqGains[index];
-            return filter;
-        });
+        try {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContextClass();
+            sourceNode = audioCtx.createMediaElementSource(audio);
+            
+            const frequencies = [60, 230, 910, 4000, 14000];
+            eqFilters = frequencies.map((freq, index) => {
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'peaking';
+                filter.frequency.value = freq;
+                filter.Q.value = 1.0; 
+                filter.gain.value = eqGains[index];
+                return filter;
+            });
 
-        compressorNode = audioCtx.createDynamicsCompressor();
-        gainNode = audioCtx.createGain();
-        analyserNode = audioCtx.createAnalyser(); 
+            compressorNode = audioCtx.createDynamicsCompressor();
+            gainNode = audioCtx.createGain();
+            analyserNode = audioCtx.createAnalyser(); 
 
-        compressorNode.threshold.setValueAtTime(-28, audioCtx.currentTime);
-        compressorNode.knee.setValueAtTime(15, audioCtx.currentTime);
-        compressorNode.ratio.setValueAtTime(16, audioCtx.currentTime);
-        compressorNode.attack.setValueAtTime(0.005, audioCtx.currentTime);
-        compressorNode.release.setValueAtTime(0.20, audioCtx.currentTime);
+            compressorNode.threshold.setValueAtTime(-28, audioCtx.currentTime);
+            compressorNode.knee.setValueAtTime(15, audioCtx.currentTime);
+            compressorNode.ratio.setValueAtTime(16, audioCtx.currentTime);
+            compressorNode.attack.setValueAtTime(0.005, audioCtx.currentTime);
+            compressorNode.release.setValueAtTime(0.20, audioCtx.currentTime);
 
-        analyserNode.fftSize = 64; 
-        gainNode.gain.setValueAtTime(parseFloat(volumeSlider.value), audioCtx.currentTime);
+            analyserNode.fftSize = 64; 
+            gainNode.gain.setValueAtTime(parseFloat(volumeSlider.value), audioCtx.currentTime);
 
-        updateAudioRouting();
-        drawVisualizer(); 
+            updateAudioRouting();
+            drawVisualizer(); 
+        } catch(e) {
+            console.warn("AudioContext blockiert oder nicht unterstützt.", e);
+        }
     }
 
     function updateAudioRouting() {
@@ -479,20 +617,21 @@
 
     function updateEQBand(index, value) {
         eqGains[index] = parseFloat(value);
-        localStorage.setItem('player_eq_gains', JSON.stringify(eqGains));
+        safeLocalStorage.setItem('player_eq_gains', JSON.stringify(eqGains));
         document.getElementById(`eq-v${index}`).textContent = (value > 0 ? "+" : "") + value + "dB";
         if (audioCtx && eqFilters[index]) {
             eqFilters[index].gain.setValueAtTime(eqGains[index], audioCtx.currentTime);
         }
     }
 
-    // --- REPARIERT: Funktion setzt jetzt die Regler fehlerfrei zurück ---
     function resetEQ() {
         eqGains = [0, 0, 0, 0, 0];
-        localStorage.setItem('player_eq_gains', JSON.stringify(eqGains));
+        safeLocalStorage.setItem('player_eq_gains', JSON.stringify(eqGains));
         for(let i=0; i<5; i++) {
-            document.getElementById(`eq-band-${i}`).value = 0;
-            document.getElementById(`eq-v${i}`).textContent = "0dB";
+            const slider = document.getElementById(`eq-band-${i}`);
+            if(slider) slider.value = 0;
+            const val = document.getElementById(`eq-v${i}`);
+            if(val) val.textContent = "0dB";
             if (audioCtx && eqFilters[i]) {
                 eqFilters[i].gain.setValueAtTime(0, audioCtx.currentTime);
             }
@@ -509,7 +648,6 @@
         }
     }
 
-    // Rest der Audio-Logik...
     function setupMediaSessionHandlers() {
         if ('mediaSession' in navigator) {
             navigator.mediaSession.setActionHandler('play', () => togglePlay());
@@ -537,7 +675,10 @@
     }
 
     function resizeCanvas() {
-        canvas.width = visContainer.clientWidth - 24;
+        if (!canvas || !visContainer) return;
+        const width = visContainer.clientWidth;
+        // Schützt vor Absturz bei negativer/null Breite während des Ladens
+        canvas.width = width > 24 ? width - 24 : 300;
         canvas.height = 45;
     }
     window.addEventListener('resize', resizeCanvas);
@@ -546,7 +687,7 @@
         initAudioPipeline();
         if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
         isNormalized = !isNormalized;
-        localStorage.setItem('player_normalization', isNormalized);
+        safeLocalStorage.setItem('player_normalization', isNormalized);
         normBtn.classList.toggle('mode-on', isNormalized);
         normBtn.textContent = "🔊 Auto-Lautstärke: " + (isNormalized ? "AN" : "AUS");
         updateAudioRouting();
@@ -570,7 +711,9 @@
             URL.revokeObjectURL(url);
             updateSingleTrackDurationUI(index, songs[index].duration);
             updateTotalDurationUI();
-            localforage.setItem('offline_songs_list', songs);
+            if (typeof localforage !== 'undefined') {
+                localforage.setItem('offline_songs_list', songs).catch(() => {});
+            }
         };
     }
 
@@ -588,12 +731,24 @@
                 loadedCount++;
             }
         });
+
+        // Tab-Button bleibt super kompakt (Nur die Trackzahl!)
+        countEl.textContent = songs.length;
+
+        // Gesamtzeit wird stattdessen stilvoll im Speicher-Bereich des List-Tabs ausgegeben!
         if (loadedCount > 0) {
             const h = Math.floor(totalSecs / 3600); const m = Math.floor((totalSecs % 3600) / 60);
             let timeStr = "";
             if (h > 0) timeStr = ` (~${h} Std. ${m} Min.)`;
             else if (m > 0) timeStr = ` (~${m} Min.)`;
-            countEl.textContent = `${songs.length}${timeStr}`;
+            
+            storageStatus.textContent = `✔ ${songs.length} Lieder offline${timeStr}`;
+        } else {
+            if (songs.length > 0) {
+                storageStatus.textContent = `✔ ${songs.length} Lieder offline verfügbar`;
+            } else {
+                storageStatus.textContent = "Speicher leer. Bitte Musik importieren!";
+            }
         }
     }
 
@@ -602,8 +757,8 @@
         if (audio.src) URL.revokeObjectURL(audio.src);
         audio.src = URL.createObjectURL(songs[currentIndex].fileBlob);
         audio.load();
-        const savedTime = localStorage.getItem('player_playback_time');
-        if (savedTime) audio.currentTime = parseFloat(savedTime);
+        const savedTime = safeLocalStorage.getItem('player_playback_time');
+        if (savedTime) audio.currentTime = parseFloat(savedTime) || 0;
         updateMediaSession();
     }
 
@@ -628,7 +783,6 @@
             `;
             playlistEl.appendChild(div);
         });
-        countEl.textContent = songs.length;
         updateTotalDurationUI();
         scrollToActiveTrack();
     }
@@ -648,7 +802,7 @@
         currentIndex = index;
         currentTrackText = songs[index].name;
         updateTrackTitleText();
-        localStorage.setItem('player_current_index', currentIndex);
+        safeLocalStorage.setItem('player_current_index', currentIndex);
         
         if (audio.src) URL.revokeObjectURL(audio.src);
         audio.src = URL.createObjectURL(songs[index].fileBlob);
@@ -703,7 +857,7 @@
         progressSlider.value = audio.currentTime;
         currentTimeEl.textContent = formatTime(audio.currentTime);
         durationTimeEl.textContent = formatTime(audio.duration);
-        localStorage.setItem('player_playback_time', audio.currentTime);
+        safeLocalStorage.setItem('player_playback_time', audio.currentTime);
     };
 
     progressSlider.addEventListener('input', () => audio.currentTime = progressSlider.value);
@@ -718,7 +872,6 @@
         return `${m}:${s < 10 ? '0' : ''}${s}`;
     }
 
-    // Rest der Hilfsfunktionen...
     function toggleShuffle() {
         isShuffle = !isShuffle;
         shuffleBtn.textContent = "🔀 Shuffle: " + (isShuffle ? "An" : "Aus");
@@ -743,16 +896,18 @@
 
     async function toggleWakeLock() {
         if (!('wakeLock' in navigator)) return;
-        if (!isWakeLockActive) {
-            wakeLock = await navigator.wakeLock.request('screen');
-            isWakeLockActive = true;
-            wakeLockBtn.textContent = "📱 Display: IMMER AN";
-            wakeLockBtn.classList.add('mode-on');
-        } else {
-            isWakeLockActive = false; if (wakeLock) await wakeLock.release();
-            wakeLockBtn.textContent = "📱 Display: Normal";
-            wakeLockBtn.classList.remove('mode-on');
-        }
+        try {
+            if (!isWakeLockActive) {
+                wakeLock = await navigator.wakeLock.request('screen');
+                isWakeLockActive = true;
+                wakeLockBtn.textContent = "📱 Display: IMMER AN";
+                wakeLockBtn.classList.add('mode-on');
+            } else {
+                isWakeLockActive = false; if (wakeLock) await wakeLock.release();
+                wakeLockBtn.textContent = "📱 Display: Normal";
+                wakeLockBtn.classList.remove('mode-on');
+            }
+        } catch(e) {}
     }
 
     function updateTrackTitleText() {
@@ -778,6 +933,7 @@
         if (pageId === 'player-page') { updateTrackTitleText(); resizeCanvas(); }
     }
 
+    // Timer-Skript
     function setSleep(mins) {
         clearTimeout(sleepTimer);
         document.querySelectorAll('.timer-controls button').forEach(btn => btn.classList.remove('timer-active'));
@@ -791,10 +947,10 @@
             let fade = setInterval(() => {
                 if (currentVol > 0.05) {
                     currentVol -= 0.05;
-                    if(gainNode) gainNode.gain.setValueAtTime(currentVol, audioCtx.currentTime);
+                    if(gainNode && audioCtx) gainNode.gain.setValueAtTime(currentVol, audioCtx.currentTime);
                 } else { 
                     audio.pause(); 
-                    if(gainNode) gainNode.gain.setValueAtTime(origVol, audioCtx.currentTime);
+                    if(gainNode && audioCtx) gainNode.gain.setValueAtTime(origVol, audioCtx.currentTime);
                     volumeSlider.value = origVol;
                     mainPlayBtn.textContent = "▶"; clearInterval(fade);
                     clearSleep(); 
@@ -811,3 +967,5 @@
 </script>
 </body>
 </html>
+
+```
