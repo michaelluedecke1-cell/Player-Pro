@@ -2,17 +2,40 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate Music Player v19.0 (SD-Card Access & PWA Edition)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ultimate Music Player v19.1 (No-Refresh Edition)</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1db954">
 
     <style>
-        html, body { overscroll-behavior-y: contain; }
-        body { background: #121212; color: #fff; font-family: sans-serif; display: flex; justify-content: center; padding: 10px; margin: 0; }
+        /* WICHTIG: Pull-to-Refresh auf allen Ebenen komplett abschalten */
+        html, body { 
+            overscroll-behavior: none !important;
+            overscroll-behavior-y: none !important;
+            margin: 0;
+            padding: 10px;
+            background: #121212; 
+            color: #fff; 
+            font-family: sans-serif; 
+            display: flex; 
+            justify-content: center; 
+            box-sizing: border-box;
+            height: 100%;
+            width: 100%;
+        }
         
-        .player { width: 100%; max-width: 425px; background: #1e1e1e; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); box-sizing: border-box; }
+        .player { 
+            width: 100%; 
+            max-width: 425px; 
+            background: #1e1e1e; 
+            padding: 20px; 
+            border-radius: 20px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+            box-sizing: border-box;
+            overscroll-behavior: none !important;
+            overscroll-behavior-y: none !important;
+        }
         
         .nav-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
         .tab-btn { flex: 1; padding: 10px 5px; background: #252525; border: none; color: #b3b3b3; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.9rem; white-space: nowrap; }
@@ -21,11 +44,13 @@
         .page { display: none; }
         .page.active-page { display: block; }
 
+        /* Playlist-Auswahl auf der Hauptseite */
         .playlist-selector-container { background: #252525; padding: 10px; border-radius: 12px; margin-bottom: 12px; border: 1px solid #333; display: flex; flex-direction: column; gap: 5px; }
         .playlist-selector-container label { font-size: 0.8rem; color: #b3b3b3; font-weight: bold; }
         .select-box { width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 0.9rem; cursor: pointer; }
         .select-box:focus { border-color: #1db954; outline: none; }
 
+        /* Speicher-Menü */
         .folder-management { background: #252525; padding: 12px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; display: flex; flex-direction: column; gap: 8px; }
         .storage-status { font-size: 0.85rem; color: #1db954; font-weight: bold; padding: 2px 5px; text-align: center; background: #1a1a1a; border-radius: 6px; }
         
@@ -33,6 +58,7 @@
         .btn-reload-folder { width: 100%; padding: 10px; background: #333; color: #ffca28; border: 1px solid #ffca28; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.85rem; text-align: center; display: none; box-sizing: border-box; }
         .btn-clear-all { width: 100%; padding: 10px; background: #500; color: #ff6b6b; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; margin-top: 4px; }
 
+        /* Playlist erstellen Bereich */
         .playlist-management-box { background: #252525; padding: 12px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; display: flex; flex-direction: column; gap: 10px; }
         .row-group { display: flex; gap: 8px; }
         .create-playlist-input { flex: 1; padding: 10px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 0.85rem; }
@@ -81,7 +107,13 @@
         .btn-skip { flex: 1; font-size: 1.4rem; }
         .btn-main-play { flex: 1.5; font-size: 1.8rem; background: #1db954; color: #000; border: none; }
 
-        .playlist { max-height: 250px; overflow-y: auto; scroll-behavior: smooth; }
+        /* WICHTIG: Erlaubt Scrollen in der Playlist, verhindert aber Pull-to-Refresh auf Systemebene */
+        .playlist { 
+            max-height: 250px; 
+            overflow-y: auto; 
+            scroll-behavior: smooth; 
+            overscroll-behavior: contain !important;
+        }
         .item { padding: 12px 14px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 0.95rem; }
         .item:hover { background: #2a2a2a; }
         
@@ -367,6 +399,13 @@
         currentPlaylistSelect.value = activePlaylistName;
     }
 
+    // ZUSÄTZLICHER SCHUTZ: Verhindert versehentliches Wischen in Dropdowns
+    window.addEventListener('touchmove', function(e) {
+        if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') {
+            e.stopPropagation();
+        }
+    }, { passive: false });
+
     function changeActivePlaybackPlaylist() {
         activePlaylistName = currentPlaylistSelect.value; buildActivePlaybackSongs(); currentIndex = 0;
         if (activePlaybackSongs.length > 0) { currentTrackText = activePlaybackSongs[currentIndex].name; prepareTrackWithoutAutoplay(); } 
@@ -389,7 +428,8 @@
         if(listKeys.length === 0) { playlistModalOptions.innerHTML = "<div style='color:#aaa; font-size:0.85rem; padding:10px;'>Erstelle zuerst eine Playlist über das Feld oben!</div>"; } 
         else {
             listKeys.forEach(listName => {
-                const btn = document.createElement('div'); btn.className = "playlist-option"; btn.textContent = listName; btn.onclick = () => addSongToPlaylist(listName); playlistModalOptions.appendChild(btn);
+                const btn = document.createElement('div'); btn.className = "playlist-option"; btn.textContent = listName;
+                btn.onclick = () => addSongToPlaylist(listName); playlistModalOptions.appendChild(btn);
             });
         }
         playlistSelectModal.style.display = "flex";
@@ -482,7 +522,7 @@
         });
     }
 
-    // AUDIO PIPELINE & EFFECTS
+    // AUDIO ENGINE PIPELINE
     function initAudioPipeline() {
         if (audioCtx) return; 
         try {
@@ -608,7 +648,7 @@
     }
     function clearSleep() { clearTimeout(sleepTimer); sleepStatus.textContent = "Sleep-Timer: Aus"; document.querySelectorAll('.timer-controls button').forEach(btn => btn.classList.remove('timer-active')); }
 
-    // WICHTIG: AUTOMATISCHE REGISTRIERUNG DES SERVICE WORKERS FÜR DIE INSTALLATION
+    // Registrierung des Service Workers für die Installation
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('sw.js')
