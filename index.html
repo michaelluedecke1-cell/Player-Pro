@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate Music Player v19.0 (Playlist Delete Edition)</title>
+    <title>Ultimate Music Player v19.0 (SD-Card Access & PWA Edition)</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1db954">
+
     <style>
         html, body { overscroll-behavior-y: contain; }
         body { background: #121212; color: #fff; font-family: sans-serif; display: flex; justify-content: center; padding: 10px; margin: 0; }
@@ -17,13 +21,11 @@
         .page { display: none; }
         .page.active-page { display: block; }
 
-        /* Playlist-Auswahl auf der Hauptseite */
         .playlist-selector-container { background: #252525; padding: 10px; border-radius: 12px; margin-bottom: 12px; border: 1px solid #333; display: flex; flex-direction: column; gap: 5px; }
         .playlist-selector-container label { font-size: 0.8rem; color: #b3b3b3; font-weight: bold; }
         .select-box { width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 0.9rem; cursor: pointer; }
         .select-box:focus { border-color: #1db954; outline: none; }
 
-        /* Speicher-Menü */
         .folder-management { background: #252525; padding: 12px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; display: flex; flex-direction: column; gap: 8px; }
         .storage-status { font-size: 0.85rem; color: #1db954; font-weight: bold; padding: 2px 5px; text-align: center; background: #1a1a1a; border-radius: 6px; }
         
@@ -31,7 +33,6 @@
         .btn-reload-folder { width: 100%; padding: 10px; background: #333; color: #ffca28; border: 1px solid #ffca28; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.85rem; text-align: center; display: none; box-sizing: border-box; }
         .btn-clear-all { width: 100%; padding: 10px; background: #500; color: #ff6b6b; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; margin-top: 4px; }
 
-        /* Playlist erstellen Bereich */
         .playlist-management-box { background: #252525; padding: 12px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; display: flex; flex-direction: column; gap: 10px; }
         .row-group { display: flex; gap: 8px; }
         .create-playlist-input { flex: 1; padding: 10px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 0.85rem; }
@@ -92,7 +93,6 @@
 
         .active-track { color: #1db954; font-weight: bold; background: #252525 !important; border-radius: 5px; }
 
-        /* Modals */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 9999; justify-content: center; align-items: center; }
         .modal-box { background: #1e1e1e; padding: 20px; border-radius: 15px; max-width: 320px; width: 90%; border: 1px solid #333; text-align: center; }
         .modal-text { margin-top: 0; margin-bottom: 20px; font-size: 0.95rem; color: #fff; }
@@ -103,7 +103,6 @@
         .playlist-option { padding: 10px; background: #2a2a2a; border: 1px solid #444; color: white; border-radius: 6px; cursor: pointer; text-align: left; font-size: 0.9rem; }
         .playlist-option:hover { background: #1db954; color: black; font-weight: bold; }
 
-        /* EQ */
         .eq-container { display: flex; justify-content: space-around; height: 200px; padding: 10px 0; background: #252525; border-radius: 12px; }
         .eq-slider-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
         .eq-slider-wrapper input[type="range"] { writing-mode: bt-lr; -webkit-appearance: slider-vertical; width: 8px; height: 130px; background: #444; }
@@ -331,7 +330,7 @@
         setupMediaSessionHandlers(); resizeCanvas();
     }
 
-    // PLAYLIST MANAGEMENT
+    // PLAYLIST LOGIK
     function createNewPlaylistClick() {
         const name = newPlaylistName.value.trim();
         if(!name) return;
@@ -349,20 +348,11 @@
             if(confirmed) {
                 delete customPlaylists[targetList];
                 safeLocalStorage.setItem('player_custom_playlists', JSON.stringify(customPlaylists));
-                
-                // Falls wir die gelöschte Liste gerade hören, wechseln wir zu "Alle Lieder"
                 if(activePlaylistName === targetList) {
-                    activePlaylistName = "__all__";
-                    buildActivePlaybackSongs();
-                    currentIndex = 0;
-                    currentTrackText = activePlaybackSongs[currentIndex]?.name || "Bereit";
-                    prepareTrackWithoutAutoplay();
-                    updateTrackTitleText();
-                } else {
-                    buildActivePlaybackSongs();
-                }
-                updatePlaylistDropdownOptions();
-                renderPlaylist();
+                    activePlaylistName = "__all__"; buildActivePlaybackSongs(); currentIndex = 0;
+                    currentTrackText = activePlaybackSongs[currentIndex]?.name || "Bereit"; prepareTrackWithoutAutoplay(); updateTrackTitleText();
+                } else { buildActivePlaybackSongs(); }
+                updatePlaylistDropdownOptions(); renderPlaylist();
             }
         });
     }
@@ -370,22 +360,15 @@
     function updatePlaylistDropdownOptions() {
         currentPlaylistSelect.innerHTML = '<option value="__all__">📁 Alle SD-Karten Lieder</option>';
         deletePlaylistSelect.innerHTML = '<option value="">-- Playlist zum Löschen wählen --</option>';
-        
         for(let listName in customPlaylists) {
-            const opt = document.createElement('option');
-            opt.value = listName; opt.textContent = `📜 ${listName} (${customPlaylists[listName].length})`;
-            currentPlaylistSelect.appendChild(opt);
-
-            const optDel = document.createElement('option');
-            optDel.value = listName; optDel.textContent = listName;
-            deletePlaylistSelect.appendChild(optDel);
+            const opt = document.createElement('option'); opt.value = listName; opt.textContent = `📜 ${listName} (${customPlaylists[listName].length})`; currentPlaylistSelect.appendChild(opt);
+            const optDel = document.createElement('option'); optDel.value = listName; optDel.textContent = listName; deletePlaylistSelect.appendChild(optDel);
         }
         currentPlaylistSelect.value = activePlaylistName;
     }
 
     function changeActivePlaybackPlaylist() {
-        activePlaylistName = currentPlaylistSelect.value;
-        buildActivePlaybackSongs(); currentIndex = 0;
+        activePlaylistName = currentPlaylistSelect.value; buildActivePlaybackSongs(); currentIndex = 0;
         if (activePlaybackSongs.length > 0) { currentTrackText = activePlaybackSongs[currentIndex].name; prepareTrackWithoutAutoplay(); } 
         else { currentTrackText = "Liste ist leer"; }
         updateTrackTitleText(); renderPlaylist(); if (isShuffle) generateShuffleList();
@@ -406,8 +389,7 @@
         if(listKeys.length === 0) { playlistModalOptions.innerHTML = "<div style='color:#aaa; font-size:0.85rem; padding:10px;'>Erstelle zuerst eine Playlist über das Feld oben!</div>"; } 
         else {
             listKeys.forEach(listName => {
-                const btn = document.createElement('div'); btn.className = "playlist-option"; btn.textContent = listName;
-                btn.onclick = () => addSongToPlaylist(listName); playlistModalOptions.appendChild(btn);
+                const btn = document.createElement('div'); btn.className = "playlist-option"; btn.textContent = listName; btn.onclick = () => addSongToPlaylist(listName); playlistModalOptions.appendChild(btn);
             });
         }
         playlistSelectModal.style.display = "flex";
@@ -416,14 +398,13 @@
     function closePlaylistModal() { playlistSelectModal.style.display = "none"; }
     function addSongToPlaylist(listName) {
         if(!customPlaylists[listName].includes(songToAddToPlaylist)) {
-            customPlaylists[listName].push(songToAddToPlaylist);
-            safeLocalStorage.setItem('player_custom_playlists', JSON.stringify(customPlaylists));
+            customPlaylists[listName].push(songToAddToPlaylist); safeLocalStorage.setItem('player_custom_playlists', JSON.stringify(customPlaylists));
             updatePlaylistDropdownOptions(); buildActivePlaybackSongs();
         }
         closePlaylistModal();
     }
 
-    // SD-KARTEN LOGIK
+    // SD KARTEN STREAM LOGIK
     async function openSDCardFolder() {
         try {
             if (!('showDirectoryPicker' in window)) { alert("Dein Browser unterstützt den direkten Zugriff leider nicht. Nutze Chrome oder Edge."); return; }
@@ -449,8 +430,7 @@
                 if (entry.kind === 'file' && /\.(mp3|wav|ogg|m4a|flac)$/i.test(entry.name)) { allSongs.push({ name: entry.name.replace(/\.[^/.]+$/, ""), fileHandle: entry }); }
             }
             if(allSongs.length === 0) { storageStatus.textContent = "Keine Musik gefunden."; buildActivePlaybackSongs(); renderPlaylist(); return; }
-            allSongs.sort((a, b) => a.name.localeCompare(b.name));
-            storageStatus.textContent = `✔ ${allSongs.length} Lieder geladen!`;
+            allSongs.sort((a, b) => a.name.localeCompare(b.name)); storageStatus.textContent = `✔ ${allSongs.length} Lieder geladen!`;
             buildActivePlaybackSongs(); currentIndex = 0; currentTrackText = activePlaybackSongs[currentIndex]?.name || "Bereit";
             updateTrackTitleText(); renderPlaylist(); prepareTrackWithoutAutoplay(); if (isShuffle) generateShuffleList(); updatePlaylistDropdownOptions();
         } catch(err) { storageStatus.textContent = "❌ Fehler beim Lesen."; }
@@ -502,7 +482,7 @@
         });
     }
 
-    // AUDIO ENGINE PIPELINE
+    // AUDIO PIPELINE & EFFECTS
     function initAudioPipeline() {
         if (audioCtx) return; 
         try {
@@ -627,6 +607,15 @@
         }, mins * 60000);
     }
     function clearSleep() { clearTimeout(sleepTimer); sleepStatus.textContent = "Sleep-Timer: Aus"; document.querySelectorAll('.timer-controls button').forEach(btn => btn.classList.remove('timer-active')); }
+
+    // WICHTIG: AUTOMATISCHE REGISTRIERUNG DES SERVICE WORKERS FÜR DIE INSTALLATION
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('Service Worker erfolgreich registriert!', reg.scope))
+                .catch(err => console.error('Service Worker Registrierungsfehler:', err));
+        });
+    }
 </script>
 </body>
 </html>
