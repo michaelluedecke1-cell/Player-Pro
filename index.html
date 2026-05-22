@@ -3,74 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ultimate Music Player v19.1 (No-Refresh Edition)</title>
+    <title>Ultimate Music Player v20.2 (Layout Fix Edition)</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1db954">
 
     <style>
-        /* WICHTIG: Pull-to-Refresh auf allen Ebenen komplett abschalten */
-        html, body { 
+        /* 1. Verhindert jegliche Bewegung und das "Gummiband"-Scrollen auf Systemebene */
+        html, body {
             overscroll-behavior: none !important;
             overscroll-behavior-y: none !important;
             margin: 0;
-            padding: 10px;
+            padding: 0;
             background: #121212; 
             color: #fff; 
             font-family: sans-serif; 
             display: flex; 
             justify-content: center; 
+            align-items: flex-start;
             box-sizing: border-box;
-            height: 100%;
-            width: 100%;
+            overflow: hidden !important; 
+            height: 100vh;
+            width: 100vw;
+            touch-action: none; 
         }
         
+        /* 2. Fixiert den Player starr auf dem Bildschirm, damit er sich nicht bewegen lässt */
         .player { 
-            width: 100%; 
+            position: fixed;
+            top: 10px;
+            bottom: 10px;
+            width: calc(100% - 20px); 
             max-width: 425px; 
             background: #1e1e1e; 
-            padding: 20px; 
+            padding: 15px; /* Von 20px auf 15px verringert für mehr vertikalen Platz */
             border-radius: 20px; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
             box-sizing: border-box;
             overscroll-behavior: none !important;
             overscroll-behavior-y: none !important;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
         
-        .nav-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .nav-tabs { display: flex; gap: 8px; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; shrink: 0; }
         .tab-btn { flex: 1; padding: 10px 5px; background: #252525; border: none; color: #b3b3b3; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.9rem; white-space: nowrap; }
         .tab-btn.active-tab { background: #1db954; color: #000; }
 
-        .page { display: none; }
-        .page.active-page { display: block; }
-
-        /* Playlist-Auswahl auf der Hauptseite */
-        .playlist-selector-container { background: #252525; padding: 10px; border-radius: 12px; margin-bottom: 12px; border: 1px solid #333; display: flex; flex-direction: column; gap: 5px; }
-        .playlist-selector-container label { font-size: 0.8rem; color: #b3b3b3; font-weight: bold; }
-        .select-box { width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 0.9rem; cursor: pointer; }
-        .select-box:focus { border-color: #1db954; outline: none; }
+        .page { display: none; flex-direction: column; height: 100%; overflow: hidden; }
+        .page.active-page { display: flex; }
 
         /* Speicher-Menü */
-        .folder-management { background: #252525; padding: 12px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; display: flex; flex-direction: column; gap: 8px; }
-        .storage-status { font-size: 0.85rem; color: #1db954; font-weight: bold; padding: 2px 5px; text-align: center; background: #1a1a1a; border-radius: 6px; }
+        .folder-management { background: #252525; padding: 10px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; display: flex; flex-direction: column; gap: 6px; shrink: 0; }
+        .storage-status { font-size: 0.85rem; color: #1db954; font-weight: bold; padding: 4px; text-align: center; background: #1a1a1a; border-radius: 6px; line-height: 1.2; }
         
-        .btn-add-folder { width: 100%; padding: 14px; background: #1db954; color: #000; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.95rem; text-align: center; display: block; box-sizing: border-box; }
-        .btn-reload-folder { width: 100%; padding: 10px; background: #333; color: #ffca28; border: 1px solid #ffca28; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.85rem; text-align: center; display: none; box-sizing: border-box; }
-        .btn-clear-all { width: 100%; padding: 10px; background: #500; color: #ff6b6b; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; margin-top: 4px; }
+        .btn-add-folder { width: 100%; padding: 10px; background: #1db954; color: #000; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.9rem; text-align: center; display: block; box-sizing: border-box; }
+        .btn-reload-folder { width: 100%; padding: 8px; background: #333; color: #ffca28; border: 1px solid #ffca28; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.8rem; text-align: center; display: none; box-sizing: border-box; }
+        .btn-clear-all { width: 100%; padding: 8px; background: #500; color: #ff6b6b; border: none; border-radius: 8px; cursor: pointer; font-size: 0.8rem; margin-top: 2px; }
 
-        /* Playlist erstellen Bereich */
-        .playlist-management-box { background: #252525; padding: 12px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; display: flex; flex-direction: column; gap: 10px; }
-        .row-group { display: flex; gap: 8px; }
-        .create-playlist-input { flex: 1; padding: 10px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 0.85rem; }
-        .btn-create-playlist { padding: 10px 14px; background: #1db954; color: #000; border: none; border-radius: 6px; font-weight: bold; font-size: 0.85rem; cursor: pointer; }
-        .btn-delete-playlist { padding: 10px 14px; background: #ff4444; color: #fff; border: none; border-radius: 6px; font-weight: bold; font-size: 0.85rem; cursor: pointer; }
+        /* KORRIGIERTER PLAYLIST MANAGEMENT BEREICH (Untereinander für perfekte Sichtbarkeit) */
+        .playlist-management-box { background: #252525; padding: 10px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; display: flex; flex-direction: column; gap: 8px; shrink: 0; }
+        .row-group { display: flex; flex-direction: column; gap: 6px; }
+        .create-playlist-input { width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #444; border-radius: 6px; color: #fff; font-size: 0.85rem; box-sizing: border-box; }
+        
+        .btn-create-playlist { width: 100%; padding: 10px; background: #1db954; color: #000; border: none; border-radius: 6px; font-weight: bold; font-size: 0.85rem; cursor: pointer; box-sizing: border-box; text-align: center; }
+        .btn-delete-playlist { width: 100%; padding: 10px; background: #ff4444; color: #fff; border: none; border-radius: 6px; font-weight: bold; font-size: 0.85rem; cursor: pointer; box-sizing: border-box; text-align: center; }
 
-        .search-box { width: 100%; padding: 10px; background: #252525; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 0.95rem; margin-bottom: 15px; box-sizing: border-box; }
+        /* Backup Bereich */
+        .backup-management-box { display: flex; gap: 8px; margin-bottom: 10px; shrink: 0; }
+        .btn-backup { flex: 1; padding: 10px; background: #252525; color: #fff; border: 1px solid #444; border-radius: 8px; font-weight: bold; font-size: 0.8rem; cursor: pointer; text-align: center; }
+        .btn-backup:hover { background: #333; }
+
+        .search-box { width: 100%; padding: 10px; background: #252525; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 0.95rem; margin-bottom: 10px; box-sizing: border-box; shrink: 0; }
         .search-box:focus { border-color: #1db954; outline: none; }
 
         .timer-container { background: #252525; padding: 12px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; }
         .timer-controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px; }
-        .timer-container button { background: #3c3c3c; border: none; color: white; padding: 10px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: bold; }
+        .timer-container button { background: #3c3c3c; border: none; color: white; padding: 10px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: bold; transition: background 0.2s; }
         .btn-stop { grid-column: span 4; background: #400 !important; color: #ff6b6b !important; }
         #sleep-status { text-align: center; font-size: 0.85rem; color: #1db954; font-weight: bold; }
         .timer-active { background: #1db954 !important; color: #000 !important; }
@@ -107,24 +117,46 @@
         .btn-skip { flex: 1; font-size: 1.4rem; }
         .btn-main-play { flex: 1.5; font-size: 1.8rem; background: #1db954; color: #000; border: none; }
 
-        /* WICHTIG: Erlaubt Scrollen in der Playlist, verhindert aber Pull-to-Refresh auf Systemebene */
+        /* Erlaubt NUR der Playlist das Scrollen */
         .playlist { 
-            max-height: 250px; 
-            overflow-y: auto; 
+            flex: 1;
+            overflow-y: auto !important; 
             scroll-behavior: smooth; 
             overscroll-behavior: contain !important;
+            touch-action: pan-y; 
         }
         .item { padding: 12px 14px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 0.95rem; }
         .item:hover { background: #2a2a2a; }
         
         .item-left { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px; }
-        .item-right { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+        .item-right { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
         
         .btn-add-to-list { background: #333; border: 1px solid #555; color: #1db954; width: 28px; height: 28px; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
         .btn-add-to-list:hover { background: #1db954; color: #000; border-color: #1db954; }
 
+        .btn-remove-track { background: #333; border: 1px solid #555; color: #ff4444; width: 28px; height: 28px; border-radius: 50%; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; }
+        .btn-remove-track:hover { background: #ff4444; color: #fff; border-color: #ff4444; }
+
         .active-track { color: #1db954; font-weight: bold; background: #252525 !important; border-radius: 5px; }
 
+        /* GROSSES EQUALIZER LAYOUT */
+        #eq-page { height: 100%; display: none; flex-direction: column; justify-content: space-between; }
+        #eq-page.active-page { display: flex; }
+        
+        .eq-container { 
+            display: flex; justify-content: space-around; flex: 1; min-height: 280px; padding: 20px 0; background: #252525; border-radius: 15px; box-sizing: border-box; touch-action: pan-x;
+        }
+        .eq-slider-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: space-between; height: 100%; width: 18%; }
+        .eq-slider-wrapper input[type="range"] { 
+            -webkit-appearance: none; appearance: none; writing-mode: bt-lr; -webkit-appearance: slider-vertical; width: 12px; height: 80%; background: #444; border-radius: 6px; outline: none;
+        }
+        .eq-slider-wrapper input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; border-radius: 50%; background: #1db954; cursor: pointer; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        .eq-slider-wrapper input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: #1db954; cursor: pointer; border: none; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        
+        .eq-value { font-size: 0.9rem; color: #1db954; font-weight: bold; margin-bottom: 5px; min-height: 18px; }
+        .eq-label { font-size: 0.85rem; color: #b3b3b3; font-weight: bold; margin-top: 5px; }
+
+        /* Modals */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 9999; justify-content: center; align-items: center; }
         .modal-box { background: #1e1e1e; padding: 20px; border-radius: 15px; max-width: 320px; width: 90%; border: 1px solid #333; text-align: center; }
         .modal-text { margin-top: 0; margin-bottom: 20px; font-size: 0.95rem; color: #fff; }
@@ -135,21 +167,19 @@
         .playlist-option { padding: 10px; background: #2a2a2a; border: 1px solid #444; color: white; border-radius: 6px; cursor: pointer; text-align: left; font-size: 0.9rem; }
         .playlist-option:hover { background: #1db954; color: black; font-weight: bold; }
 
-        .eq-container { display: flex; justify-content: space-around; height: 200px; padding: 10px 0; background: #252525; border-radius: 12px; }
-        .eq-slider-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
-        .eq-slider-wrapper input[type="range"] { writing-mode: bt-lr; -webkit-appearance: slider-vertical; width: 8px; height: 130px; background: #444; }
-        .eq-value, .eq-label { font-size: 0.75rem; color: #1db954; }
-        .eq-label { color: #b3b3b3; }
-
         @media (min-width: 600px) {
             .player { max-width: 700px; padding: 30px; }
             .track-box { font-size: 1.4rem; height: 32px; }
-            .btn-main-play, .btn-skip { font-size: 2rem; padding: 18px; }
+            .btn-main-play { font-size: 2.4rem; padding: 18px; }
+            .btn-skip { font-size: 2rem; padding: 18px; }
             .tab-btn { padding: 14px; font-size: 1.1rem; }
             .playlist { max-height: 500px; }
             .item { padding: 18px 20px; font-size: 1.1rem; }
-            .eq-container { height: 340px; }
-            .eq-slider-wrapper input[type="range"] { height: 230px; width: 20px; }
+            .timer-container button { padding: 14px 5px; font-size: 1rem; }
+            .btn-norm { padding: 14px; font-size: 1rem; }
+            .search-box { padding: 14px; font-size: 1.1rem; }
+            .eq-container { min-height: 400px; }
+            .eq-slider-wrapper input[type="range"] { width: 16px; }
         }
     </style>
 </head>
@@ -157,12 +187,12 @@
 
 <div class="player">
     <div class="nav-tabs">
-        <button class="tab-btn active-tab" onclick="switchPage('player-page', this)">🎵 Player</button>
-        <button class="tab-btn" onclick="switchPage('playlist-page', this)">📜 List (<span id="count">0</span>)</button>
+        <button class="tab-btn" onclick="switchPage('player-page', this)">🎵 Player</button>
+        <button class="tab-btn active-tab" onclick="switchPage('playlist-page', this)">📜 List (<span id="count">0</span>)</button>
         <button class="tab-btn" onclick="switchPage('eq-page', this)">🎛️ EQ</button>
     </div>
 
-    <div id="player-page" class="page active-page">
+    <div id="player-page" class="page">
         <div class="playlist-selector-container">
             <label for="currentPlaylistSelect">Aktuelle Abspielliste:</label>
             <select id="currentPlaylistSelect" class="select-box" onchange="changeActivePlaybackPlaylist()">
@@ -221,7 +251,7 @@
         <audio id="audio" style="display:none" crossorigin="anonymous"></audio>
     </div>
 
-    <div id="playlist-page" class="page">
+    <div id="playlist-page" class="page active-page">
         <div class="folder-management">
             <div class="storage-status" id="storageStatus">Speicher-Status: Bereit</div>
             <button class="btn-add-folder" id="btnPicker" onclick="openSDCardFolder()">📁 Musik-Ordner von SD-Karte öffnen</button>
@@ -232,14 +262,20 @@
         <div class="playlist-management-box">
             <div class="row-group">
                 <input type="text" id="newPlaylistName" class="create-playlist-input" placeholder="Neue Liste (z.B. Sport)...">
-                <button class="btn-create-playlist" onclick="createNewPlaylistClick()">Erstellen</button>
+                <button class="btn-create-playlist" onclick="createNewPlaylistClick()">✨ Neue Playlist erstellen</button>
             </div>
-            <div class="row-group" style="border-top: 1px solid #333; padding-top: 10px;">
-                <select id="deletePlaylistSelect" class="select-box" style="flex:1; padding: 8px;">
+            <div class="row-group" style="border-top: 1px solid #333; padding-top: 8px; margin-top: 2px;">
+                <select id="deletePlaylistSelect" class="select-box">
                     <option value="">-- Playlist zum Löschen wählen --</option>
                 </select>
-                <button class="btn-delete-playlist" onclick="deletePlaylistClick()">Löschen</button>
+                <button class="btn-delete-playlist" onclick="deletePlaylistClick()">🗑️ Ausgewählte Playlist löschen</button>
             </div>
+        </div>
+
+        <div class="backup-management-box">
+            <button class="btn-backup" onclick="exportPlaylistBackup()">💾 Backup erstellen</button>
+            <input type="file" id="backupFileInput" accept=".json" style="display:none;" onchange="importPlaylistBackup(this)">
+            <button class="btn-backup" onclick="document.getElementById('backupFileInput').click()">📂 Backup laden</button>
         </div>
 
         <input type="text" id="searchBox" class="search-box" placeholder="🔍 In aktuellen Liedern suchen..." oninput="renderPlaylist()">
@@ -248,15 +284,37 @@
     </div>
 
     <div id="eq-page" class="page">
-        <h3 style="margin-top: 0; text-align: center; color: #1db954;">5-Band Grafik-Equalizer</h3>
+        <h3 style="margin-top: 0; margin-bottom: 10px; text-align: center; color: #1db954; shrink: 0;">5-Band Grafik-Equalizer</h3>
+        
         <div class="eq-container">
-            <div class="eq-slider-wrapper"><span class="eq-value" id="eq-v0">0dB</span><input type="range" id="eq-band-0" min="-12" max="12" step="1" value="0" oninput="updateEQBand(0, this.value)"><span class="eq-label">60 Hz</span></div>
-            <div class="eq-slider-wrapper"><span class="eq-value" id="eq-v1">0dB</span><input type="range" id="eq-band-1" min="-12" max="12" step="1" value="0" oninput="updateEQBand(1, this.value)"><span class="eq-label">230 Hz</span></div>
-            <div class="eq-slider-wrapper"><span class="eq-value" id="eq-v2">0dB</span><input type="range" id="eq-band-2" min="-12" max="12" step="1" value="0" oninput="updateEQBand(2, this.value)"><span class="eq-label">910 Hz</span></div>
-            <div class="eq-slider-wrapper"><span class="eq-value" id="eq-v3">0dB</span><input type="range" id="eq-band-3" min="-12" max="12" step="1" value="0" oninput="updateEQBand(3, this.value)"><span class="eq-label">4 kHz</span></div>
-            <div class="eq-slider-wrapper"><span class="eq-value" id="eq-v4">0dB</span><input type="range" id="eq-band-4" min="-12" max="12" step="1" value="0" oninput="updateEQBand(4, this.value)"><span class="eq-label">14 kHz</span></div>
+            <div class="eq-slider-wrapper">
+                <span class="eq-value" id="eq-v0">0dB</span>
+                <input type="range" id="eq-band-0" min="-12" max="12" step="1" value="0" oninput="updateEQBand(0, this.value)">
+                <span class="eq-label">60 Hz</span>
+            </div>
+            <div class="eq-slider-wrapper">
+                <span class="eq-value" id="eq-v1">0dB</span>
+                <input type="range" id="eq-band-1" min="-12" max="12" step="1" value="0" oninput="updateEQBand(1, this.value)">
+                <span class="eq-label">230 Hz</span>
+            </div>
+            <div class="eq-slider-wrapper">
+                <span class="eq-value" id="eq-v2">0dB</span>
+                <input type="range" id="eq-band-2" min="-12" max="12" step="1" value="0" oninput="updateEQBand(2, this.value)">
+                <span class="eq-label">910 Hz</span>
+            </div>
+            <div class="eq-slider-wrapper">
+                <span class="eq-value" id="eq-v3">0dB</span>
+                <input type="range" id="eq-band-3" min="-12" max="12" step="1" value="0" oninput="updateEQBand(3, this.value)">
+                <span class="eq-label">4 kHz</span>
+            </div>
+            <div class="eq-slider-wrapper">
+                <span class="eq-value" id="eq-v4">0dB</span>
+                <input type="range" id="eq-band-4" min="-12" max="12" step="1" value="0" oninput="updateEQBand(4, this.value)">
+                <span class="eq-label">14 kHz</span>
+            </div>
         </div>
-        <button class="btn-norm" style="margin-top: 15px;" onclick="resetEQ()">🎛️ EQ Zurücksetzen</button>
+        
+        <button class="btn-norm" style="margin-top: 15px; shrink: 0;" onclick="resetEQ()">🎛️ EQ Zurücksetzen</button>
     </div>
 </div>
 
@@ -351,7 +409,7 @@
         if (typeof localforage !== 'undefined') {
             directoryHandle = await localforage.getItem('sd_directory_handle').catch(() => null);
             if (directoryHandle) {
-                storageStatus.textContent = "🔄 Vorhandener Ordner erkannt. Bitte reaktivieren!"; btnReload.style.display = "block";
+                storageStatus.textContent = "🔄 Ordner erkannt. Bitte reaktivieren!"; btnReload.style.display = "block";
             } else {
                 storageStatus.textContent = "Speicher leer. Bitte Musikordner von SD-Karte öffnen!";
             }
@@ -362,7 +420,35 @@
         setupMediaSessionHandlers(); resizeCanvas();
     }
 
-    // PLAYLIST LOGIK
+    // BACKUP LOGIK
+    function exportPlaylistBackup() {
+        if(Object.keys(customPlaylists).length === 0) { alert("Du hast noch keine Playlists erstellt, die gesichert werden könnten!"); return; }
+        try {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(customPlaylists, null, 2));
+            const downloadAnchor = document.createElement('a'); downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", "music_player_backup.json");
+            document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
+        } catch(e) { alert("Backup-Erstellung fehlgeschlagen."); }
+    }
+
+    function importPlaylistBackup(inputElement) {
+        const file = inputElement.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                if (importedData && typeof importedData === 'object' && !Array.isArray(importedData)) {
+                    customPlaylists = Object.assign({}, customPlaylists, importedData);
+                    safeLocalStorage.setItem('player_custom_playlists', JSON.stringify(customPlaylists));
+                    updatePlaylistDropdownOptions(); buildActivePlaybackSongs(); renderPlaylist();
+                    alert("✔ Backup erfolgreich eingespielt! Deine Playlists wurden geladen.");
+                } else { alert("Fehler: Ungültiges Backup-Format."); }
+            } catch (err) { alert("Fehler beim Lesen der Backup-Datei."); }
+            inputElement.value = "";
+        };
+        reader.readAsText(file);
+    }
+
+    // PLAYLIST MANAGEMENT
     function createNewPlaylistClick() {
         const name = newPlaylistName.value.trim();
         if(!name) return;
@@ -399,12 +485,7 @@
         currentPlaylistSelect.value = activePlaylistName;
     }
 
-    // ZUSÄTZLICHER SCHUTZ: Verhindert versehentliches Wischen in Dropdowns
-    window.addEventListener('touchmove', function(e) {
-        if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') {
-            e.stopPropagation();
-        }
-    }, { passive: false });
+    window.addEventListener('touchmove', function(e) { if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') { e.stopPropagation(); } }, { passive: false });
 
     function changeActivePlaybackPlaylist() {
         activePlaylistName = currentPlaylistSelect.value; buildActivePlaybackSongs(); currentIndex = 0;
@@ -444,6 +525,16 @@
         closePlaylistModal();
     }
 
+    function removeSongFromCurrentPlaylist(songName, e) {
+        e.stopPropagation(); if(activePlaylistName === "__all__") return;
+        customPlaylists[activePlaylistName] = customPlaylists[activePlaylistName].filter(name => name !== songName);
+        safeLocalStorage.setItem('player_custom_playlists', JSON.stringify(customPlaylists));
+        buildActivePlaybackSongs();
+        if (currentIndex >= activePlaybackSongs.length) { currentIndex = 0; }
+        currentTrackText = activePlaybackSongs[currentIndex]?.name || "Liste ist leer";
+        updatePlaylistDropdownOptions(); renderPlaylist();
+    }
+
     // SD KARTEN STREAM LOGIK
     async function openSDCardFolder() {
         try {
@@ -464,16 +555,24 @@
     }
 
     async function readAllFilesFromDirectory() {
-        storageStatus.textContent = "⏳ Scanne SD-Karten-Ordner nach Musik..."; allSongs = [];
+        storageStatus.textContent = "⏳ Scanne Musik... Lieder gefunden: 0"; allSongs = [];
         try {
-            for await (const entry of directoryHandle.values()) {
-                if (entry.kind === 'file' && /\.(mp3|wav|ogg|m4a|flac)$/i.test(entry.name)) { allSongs.push({ name: entry.name.replace(/\.[^/.]+$/, ""), fileHandle: entry }); }
-            }
+            await scanDirectoryRecursive(directoryHandle);
             if(allSongs.length === 0) { storageStatus.textContent = "Keine Musik gefunden."; buildActivePlaybackSongs(); renderPlaylist(); return; }
-            allSongs.sort((a, b) => a.name.localeCompare(b.name)); storageStatus.textContent = `✔ ${allSongs.length} Lieder geladen!`;
+            allSongs.sort((a, b) => a.name.localeCompare(b.name));
+            storageStatus.textContent = `✔ ${allSongs.length} Lieder geladen!`;
             buildActivePlaybackSongs(); currentIndex = 0; currentTrackText = activePlaybackSongs[currentIndex]?.name || "Bereit";
             updateTrackTitleText(); renderPlaylist(); prepareTrackWithoutAutoplay(); if (isShuffle) generateShuffleList(); updatePlaylistDropdownOptions();
         } catch(err) { storageStatus.textContent = "❌ Fehler beim Lesen."; }
+    }
+
+    async function scanDirectoryRecursive(dirHandle) {
+        for await (const entry of dirHandle.values()) {
+            if (entry.kind === 'file' && /\.(mp3|wav|ogg|m4a|flac)$/i.test(entry.name)) {
+                allSongs.push({ name: entry.name.replace(/\.[^/.]+$/, ""), fileHandle: entry });
+                if (allSongs.length % 5 === 0 || allSongs.length < 5) { storageStatus.textContent = `⏳ Scanne... ${allSongs.length} Lieder gefunden`; }
+            } else if (entry.kind === 'directory') { await scanDirectoryRecursive(entry); }
+        }
     }
 
     function renderPlaylist() {
@@ -481,9 +580,13 @@
         activePlaybackSongs.forEach((song, index) => {
             if (query && !song.name.toLowerCase().includes(query)) return; currentFilteredIndices.push(index);
             const div = document.createElement('div'); div.id = `track-item-${index}`; div.className = 'item' + (index === currentIndex && audio.src ? ' active-track' : '');
+            const showDeleteButton = activePlaylistName !== "__all__"; const escapedName = song.name.replace(/'/g, "\\'");
             div.innerHTML = `
                 <div class="item-left" onclick="playSong(${index})">${currentFilteredIndices.length}. ${song.name}</div>
-                <div class="item-right"><button class="btn-add-to-list" onclick="openAddToPlaylistModal('${song.name.replace(/'/g, "\\'")}', event)">+</button></div>
+                <div class="item-right">
+                    <button class="btn-add-to-list" onclick="openAddToPlaylistModal('${escapedName}', event)">+</button>
+                    ${showDeleteButton ? `<button class="btn-remove-track" onclick="removeSongFromCurrentPlaylist('${escapedName}', event)">×</button>` : ''}
+                </div>
             `;
             playlistEl.appendChild(div);
         });
@@ -494,7 +597,7 @@
         if(!activePlaybackSongs[currentIndex]) return;
         try {
             if (audio.src) URL.revokeObjectURL(audio.src); const file = await activePlaybackSongs[currentIndex].fileHandle.getFile();
-            audio.src = URL.createObjectURL(file); audio.load(); updateMediaSession();
+            audio.src = URL.createObjectURL(file); audio.load(); updateMediaSession(); updatePlaybackPositionState();
         } catch(e){}
     }
 
@@ -505,7 +608,7 @@
         try {
             if (audio.src) URL.revokeObjectURL(audio.src); const file = await activePlaybackSongs[index].fileHandle.getFile();
             audio.src = URL.createObjectURL(file); audio.play().catch(e => console.log(e));
-            mainPlayBtn.textContent = "⏸"; updateMediaSession(); renderPlaylist();
+            mainPlayBtn.textContent = "⏸"; updateMediaSession(); updatePlaybackPositionState(); renderPlaylist();
         } catch(e) { alert("Datei-Zugriff fehlgeschlagen. Bitte Ordner reaktivieren."); }
     }
 
@@ -574,6 +677,7 @@
         if (!audio.src && activePlaybackSongs.length > 0) { playSong(currentIndex); return; }
         initAudioPipeline(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
         if (audio.paused) { audio.play(); mainPlayBtn.textContent = "⏸"; } else { audio.pause(); mainPlayBtn.textContent = "▶"; }
+        updatePlaybackPositionState();
     }
 
     function prevSong() { 
@@ -594,8 +698,13 @@
     }
 
     audio.onended = () => { if (isRepeat) playSong(currentIndex); else nextSong(); };
-    audio.ontimeupdate = () => { if(isNaN(audio.duration)) return; progressSlider.max = audio.duration; progressSlider.value = audio.currentTime; currentTimeEl.textContent = formatTime(audio.currentTime); durationTimeEl.textContent = formatTime(audio.duration); };
-    progressSlider.addEventListener('input', () => audio.currentTime = progressSlider.value);
+    audio.ontimeupdate = () => {
+        if(isNaN(audio.duration)) return;
+        progressSlider.max = audio.duration; progressSlider.value = audio.currentTime;
+        currentTimeEl.textContent = formatTime(audio.currentTime); durationTimeEl.textContent = formatTime(audio.duration);
+        if (navigator.mediaSession && typeof navigator.mediaSession.setPositionState === 'function') { if (audio.playbackRate > 0) { updatePlaybackPositionState(); } }
+    };
+    progressSlider.addEventListener('input', () => { audio.currentTime = progressSlider.value; updatePlaybackPositionState(); });
     function formatTime(secs) { if (isNaN(secs)) return "0:00"; const m = Math.floor(secs / 60); const s = Math.floor(secs % 60); return `${m}:${s < 10 ? '0' : ''}${s}`; }
 
     function toggleShuffle() { isShuffle = !isShuffle; shuffleBtn.textContent = "🔀 Shuffle: " + (isShuffle ? "An" : "Aus"); shuffleBtn.classList.toggle('mode-on', isShuffle); if (isShuffle) generateShuffleList(); }
@@ -626,13 +735,30 @@
         }, 50);
     }
 
+    document.body.addEventListener('click', function() { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }, { once: false });
+
     function switchPage(pageId, btn) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page')); document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active-tab'));
         document.getElementById(pageId).classList.add('active-page'); btn.classList.add('active-tab'); if (pageId === 'player-page') { updateTrackTitleText(); resizeCanvas(); }
     }
 
-    function setupMediaSessionHandlers() { if ('mediaSession' in navigator) { navigator.mediaSession.setActionHandler('play', () => togglePlay()); navigator.mediaSession.setActionHandler('pause', () => togglePlay()); navigator.mediaSession.setActionHandler('previoustrack', () => prevSong()); navigator.mediaSession.setActionHandler('nexttrack', () => nextSong()); } }
+    function setupMediaSessionHandlers() {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.setActionHandler('play', () => togglePlay()); navigator.mediaSession.setActionHandler('pause', () => togglePlay());
+            navigator.mediaSession.setActionHandler('previoustrack', () => prevSong()); navigator.mediaSession.setActionHandler('nexttrack', () => nextSong());
+            navigator.mediaSession.setActionHandler('seekto', (details) => { if (details.fastSeek && 'fastSeek' in audio) { audio.fastSeek(details.seekTime); } else { audio.currentTime = details.seekTime; } updatePlaybackPositionState(); });
+        }
+    }
+
     function updateMediaSession() { if ('mediaSession' in navigator && activePlaybackSongs[currentIndex]) { navigator.mediaSession.metadata = new MediaMetadata({ title: activePlaybackSongs[currentIndex].name, artist: 'SD-Karte', album: activePlaylistName === "__all__" ? "All Tracks" : activePlaylistName }); } }
+
+    function updatePlaybackPositionState() {
+        if ('mediaSession' in navigator && typeof navigator.mediaSession.setPositionState === 'function') {
+            if (!isNaN(audio.duration) && !isNaN(audio.currentTime) && !isNaN(audio.playbackRate)) {
+                try { navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: audio.playbackRate, position: audio.currentTime }); } catch (e) {}
+            }
+        }
+    }
 
     function setSleep(mins) {
         clearTimeout(sleepTimer); document.querySelectorAll('.timer-controls button').forEach(btn => btn.classList.remove('timer-active'));
@@ -647,15 +773,6 @@
         }, mins * 60000);
     }
     function clearSleep() { clearTimeout(sleepTimer); sleepStatus.textContent = "Sleep-Timer: Aus"; document.querySelectorAll('.timer-controls button').forEach(btn => btn.classList.remove('timer-active')); }
-
-    // Registrierung des Service Workers für die Installation
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('sw.js')
-                .then(reg => console.log('Service Worker erfolgreich registriert!', reg.scope))
-                .catch(err => console.error('Service Worker Registrierungsfehler:', err));
-        });
-    }
 </script>
 </body>
 </html>
